@@ -1,0 +1,188 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Processor Versions &mdash; Blimp  documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/logo.css?v=0320fe47" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/wavedrom.css?v=4f1d019f" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/table.css?v=c4561ef3" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/image.css?v=c42c1b78" />
+
+  
+    <link rel="shortcut icon" href="../../_static/blimp_favicon.png"/>
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=187304be"></script>
+      <script src="../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script src="https://wavedrom.com/skins/default.js"></script>
+      <script src="https://wavedrom.com/wavedrom.min.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex/" />
+    <link rel="search" title="Search" href="../../search/" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../" class="icon icon-home">
+            Blimp
+              <img src="../../_static/blimp_no_border.png" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search/" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <!-- Local TOC -->
+              <div class="local-toc"><ul>
+<li><a class="reference internal" href="#">Processor Versions</a><ul>
+<li><a class="reference internal" href="#version-1">Version 1</a></li>
+</ul>
+</li>
+</ul>
+</div>
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../">Blimp</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Processor Versions</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/cornell-brg/blimp/blob/main/docs/overview/versions.rst" class="fa fa-github"> Edit on GitHub</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="processor-versions">
+<h1>Processor Versions<a class="headerlink" href="#processor-versions" title="Link to this heading"></a></h1>
+<p>Blimp takes an iterative design approach, enabled through its modularity.
+Different levels of Blimp’s <a class="reference internal" href="../../units/units/"><span class="doc">microarchitectural units</span></a>
+can be composed to form different versions of Blimp processors. This
+enables the design of these components to occur iteratively, adding on
+functionality as the complexity of the processor progressed.</p>
+<p>Currently, 1 version of the processor is implemented. The table below
+details the level of each unit that each processor version supports:</p>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head stub"><p>Proc. Version</p></th>
+<th class="head"><p>FU Level</p></th>
+<th class="head"><p>DIU Level</p></th>
+<th class="head"><p>XU Levels</p></th>
+<th class="head"><p>WCU Level</p></th>
+<th class="head"><p>SU Level</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><th class="stub"><p>V1</p></th>
+<td><p>1</p></td>
+<td><p>1</p></td>
+<td><p>1</p></td>
+<td><p>1</p></td>
+<td></td>
+</tr>
+<tr class="row-odd"><th class="stub"><p>V2</p></th>
+<td><p>2</p></td>
+<td><p>2</p></td>
+<td><p>1, 2</p></td>
+<td><p>2</p></td>
+<td></td>
+</tr>
+<tr class="row-even"><th class="stub"><p>V3</p></th>
+<td><p>2</p></td>
+<td><p>3</p></td>
+<td><p>1, 2</p></td>
+<td><p>3</p></td>
+<td></td>
+</tr>
+<tr class="row-odd"><th class="stub"><p>V4</p></th>
+<td><p>2</p></td>
+<td><p>3</p></td>
+<td><p>1, 2, 3</p></td>
+<td><p>3</p></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<section id="version-1">
+<h2>Version 1<a class="headerlink" href="#version-1" title="Link to this heading"></a></h2>
+<p>The Version 1 processor is the simplest version, and aims to be the
+baseline needed for assembly execution with modular units. Only three
+instructions are supported (<code class="docutils literal notranslate"><span class="pre">add</span></code>, <code class="docutils literal notranslate"><span class="pre">addi</span></code>, and <code class="docutils literal notranslate"><span class="pre">mul</span></code>). The processor
+is single-issue with in-order issue and completion, and assumes that
+Execute Units are single-cycle to maintain instruction ordering.</p>
+<a class="bottompadding reference internal image-reference" href="../../_images/versions-v1.png"><img alt="A picture of the Version 1 processor composition" class="bottompadding align-center" src="../../_images/versions-v1.png" style="width: 70%;" />
+</a>
+<div class="note admonition">
+<p class="admonition-title">Instruction Routing/Arbitration</p>
+<p>To prepare for out-of-order implementations, the Level 1 DIU
+dynamically routes instructions to XUs based on availability, and the
+Level 1 WCU implements Round-Robin arbitration to select which XU to
+receive an instruction from. However, this isn’t relevant based on
+the single-cycle guarantee of XUs, and could be replaced if needed
+for area.</p>
+</div>
+</section>
+</section>
+
+    <script type="text/javascript">
+        function init() {
+            WaveDrom.ProcessAll();
+        }
+        window.onload = init;
+    </script>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, Aidan McNay.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

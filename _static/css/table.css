@@ -1,0 +1,23 @@
+/*
+==========================================================================
+table.css
+==========================================================================
+Some CSS to color tables (I like colors)
+*/
+
+table {
+  text-align: center;
+}
+
+.rst-content table.docutils thead {
+  background-color: #2980b9;
+  color: #ffffff;
+}
+
+tbody .stub {
+  color: #b31b1b;
+}
+
+tbody td:empty {
+  background-color: #808080 !important;
+}
