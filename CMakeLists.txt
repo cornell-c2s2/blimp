@@ -235,9 +235,9 @@ foreach(V_TEST_FILE_REL_PATH ${V_TEST_FILES})
   target_include_directories(${V_TEST_BIN} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_Verilog_DPI_INCLUDES})
 
   if(CMAKE_Verilog_COMPILER_ID STREQUAL "Verilator")
-    target_compile_options(${V_TEST_BIN} PRIVATE --timing --quiet-stats)
+    target_compile_options(${V_TEST_BIN} PRIVATE --timing --quiet-stats --CFLAGS "-std=c++20 -fcoroutines")
     if(TRACE)
-      target_compile_options(${V_TEST_BIN} PRIVATE --trace --trace-structs)
+      target_compile_options(${V_TEST_BIN} PRIVATE --trace --trace-structs --CFLAGS "-std=c++20 -fcoroutines")
     endif()
   endif()
 
