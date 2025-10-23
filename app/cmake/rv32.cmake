@@ -14,7 +14,7 @@ if(NOT DEFINED RISCV_TOOLCHAIN_CONFIGURED)
     set(TOOLCHAIN_PREFIX riscv64-unknown-elf- CACHE STRING "")
   endif()
 
-  FIND_FILE(RISCV_GCC_COMPILER ${TOOLCHAIN_PREFIX}gcc PATHS ENV INCLUDE ${PATH})
+  FIND_FILE(RISCV_GCC_COMPILER ${TOOLCHAIN_PREFIX}gcc PATHS ENV INCLUDE ${PATH} "/classes/c2s2/easybuild-rhel/software/riscv-gnu-toolchain/2024.02.02-GCCcore-13.2.0/bin")
   if (EXISTS ${RISCV_GCC_COMPILER})
     message(STATUS "Found RISC-V GCC Toolchain: ${RISCV_GCC_COMPILER}")
   else()

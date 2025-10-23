@@ -346,7 +346,7 @@ foreach(V_SIM_FILE_REL_PATH ${BLIMP_SIMS})
   target_include_directories(${V_SIM_BIN} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_Verilog_DPI_INCLUDES})
 
   if(CMAKE_Verilog_COMPILER_ID STREQUAL "Verilator")
-    set(V_COMPILE_FLAGS "--timing --quiet-stats")
+    set(V_COMPILE_FLAGS "--timing --quiet-stats --CFLAGS \"-std=c++20 -fcoroutines\"")
     if(TRACE)
       set(V_COMPILE_FLAGS "${V_COMPILE_FLAGS} --trace --trace-structs")
     endif()
