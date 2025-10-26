@@ -19,7 +19,7 @@ module SRAMMem #(
 
   sram_SRAMMinion sram_minion (
     .clk        (clk),
-    .rst        (rst),
+    .reset      (rst),
 
     .minion_reqstream_val(req.val),
     .minion_reqstream_rdy(req.rdy),
@@ -31,3 +31,5 @@ module SRAMMem #(
   );
 
 endmodule
+
+`endif

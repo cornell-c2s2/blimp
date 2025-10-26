@@ -363,17 +363,33 @@ foreach(V_SIM_FILE_REL_PATH ${BLIMP_SIMS})
   # Track dependencies
   vdeps(SIM_DEPS
     SOURCE ${V_SIM_FILE_REL_PATH}
-    INCLUDE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}"
+    INCLUDE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}/../ip"
   )
-  add_prefix(SIM_DEPS "${CMAKE_CURRENT_SOURCE_DIR}/")
-  set_property(SOURCE ${V_SIM_FILE_PATH} APPEND PROPERTY OBJECT_DEPENDS ${SIM_DEPS})
+  set(SIM_DEPS_ABS "")
+  foreach(DEP ${SIM_DEPS})
+    unset(DEP_PATH)
+    find_file(
+      DEP_PATH
+      NAMES ${DEP}
+      PATHS "${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}/../ip"
+      NO_DEFAULT_PATH
+      NO_CACHE
+    )
+    if(DEP_PATH)
+      list(APPEND SIM_DEPS_ABS ${DEP_PATH})
+    else()
+      message(WARNING "Could not find dependency: ${DEP}")
+      list(APPEND SIM_DEPS_ABS "${CMAKE_CURRENT_SOURCE_DIR}/${DEP}")
+    endif()
+  endforeach()
+  set_property(SOURCE ${V_SIM_FILE_PATH} APPEND PROPERTY OBJECT_DEPENDS ${SIM_DEPS_ABS})
 
   # Add linting
   vlint(${V_SIM_BIN}-lint
     TARGET_NAME ${V_SIM_BIN}
     SOURCES ${V_SIM_FILE_REL_PATH}
-    INCLUDE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}"
-    DEPENDS ${SIM_DEPS}
+    INCLUDE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}/../ip"
+    DEPENDS ${SIM_DEPS_ABS}
   )
   add_dependencies(${V_SIM_BIN} ${V_SIM_BIN}-lint)
 endforeach(V_SIM_FILE_REL_PATH)
