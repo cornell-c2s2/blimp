@@ -5,7 +5,7 @@
 `include "fpga/net/MemNetResp.v"
 
 // not sure if this path resolves...
-`include "sram/rtl/sram_minion.sv"
+`include "ip/sram/rtl/sram_minion.sv"
 
 module SRAMMem #(
   parameter p_opaq_bits = 8
