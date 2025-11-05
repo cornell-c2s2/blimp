@@ -59,7 +59,12 @@ package UArch;
     OP_DIV,
     OP_DIVU,
     OP_REM,
-    OP_REMU
+    OP_REMU,
+
+    // CSR
+    OP_CSRRW,
+    OP_CSRRS,
+    OP_CSRRC
   } rv_uop;
 
   // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -

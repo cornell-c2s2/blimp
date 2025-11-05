@@ -89,6 +89,13 @@ enum inst_name_t {
   DIVU,
   REM,
   REMU,
+
+  // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+  // CSR
+  // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+  CSRRW,
+  CSRRS,
+  CSRRC,
 };
 
 typedef struct {
@@ -181,6 +188,13 @@ const inst_spec_t inst_specs[] = {
     { DIVU, "divu   rd, rs1, rs2", 0x02005033, 0xFE00707F },
     { REM, "rem    rd, rs1, rs2", 0x02006033, 0xFE00707F },
     { REMU, "remu   rd, rs1, rs2", 0x02007033, 0xFE00707F },
+
+    // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    // CSR
+    // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    { CSRRW,  "csrrw   rd, csr, rs1",  0x00001073, 0x0000707F }, 
+    { CSRRS,  "csrrs   rd, csr, rs1",  0x00002073, 0x0000707F }, 
+    { CSRRC,  "csrrc   rd, csr, rs1",  0x00003073, 0x0000707F }, 
 };
 
 //------------------------------------------------------------------------
