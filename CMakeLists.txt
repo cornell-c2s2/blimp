@@ -36,6 +36,7 @@ set(V_TEST_FILES
   hw/execute/test/l7/IterativeMulDivRemL7_test.v
   hw/execute/test/l7/LoadStoreUnitL7_test.v
   hw/execute/test/l8/ALUF_test.v
+  hw/execute/test/l8/CSRL8_test.v
   hw/fetch/test/FetchUnitL1_test.v
   hw/fetch/test/FetchUnitL2_test.v
   hw/fetch/test/FetchUnitL3_test.v
