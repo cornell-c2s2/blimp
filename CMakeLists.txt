@@ -128,6 +128,15 @@ set(TRACE 0)
 endif()
 
 #-------------------------------------------------------------------------
+# Coverage Reporting
+#-------------------------------------------------------------------------
+# Disable by default for speed
+
+if(NOT DEFINED COVERAGE)
+set(COVERAGE 0)
+endif()
+
+#-------------------------------------------------------------------------
 # get_leaf
 #-------------------------------------------------------------------------
 # Gets the leaf file of a path.
@@ -238,6 +247,13 @@ foreach(V_TEST_FILE_REL_PATH ${V_TEST_FILES})
     target_compile_options(${V_TEST_BIN} PRIVATE --timing --quiet-stats --CFLAGS "-std=c++20 -fcoroutines")
     if(TRACE)
       target_compile_options(${V_TEST_BIN} PRIVATE --trace --trace-structs --CFLAGS "-std=c++20 -fcoroutines")
+    endif()
+  endif()
+
+  if(CMAKE_Verilog_COMPILER_ID STREQUAL "VCS")
+    target_link_options(${V_TEST_BIN} PRIVATE -full64 -xprop=tmerge)
+    if(COVERAGE)
+      target_link_options(${V_TEST_BIN} PRIVATE -cm line+cond+tgl+fsm+branch -cm_dir ${V_TEST_BIN}.vdb)
     endif()
   endif()
 
