@@ -42,7 +42,7 @@ module SRAMMem #(
   assign minion_reqstream_msg.data  = req.msg.data;
 
   // Convert from minion_respstream_msg to MemNetResp
-  assign resp.msg.op      = minion_respstream_msg.type_;
+  assign resp.msg.op      = t_op'(minion_respstream_msg.type_);
   assign resp.msg.opaque  = minion_respstream_msg.opaque;
   assign resp.msg.addr    = minion_respstream_msg.addr;
   assign resp.msg.strb    = minion_respstream_msg.strb;
