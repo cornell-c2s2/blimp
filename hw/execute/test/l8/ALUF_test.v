@@ -49,9 +49,9 @@ module ALULFTestSuite #(
     .p_seq_num_bits (p_seq_num_bits)
   ) X__W_intf();
 
-  IterativeMulDivRemL7 dut (
+  ALULF dut (
     .D (D__X_intf),
-    .W (X__W_intf), 
+    .W (X__W_intf),
     .*
   );
 
@@ -186,13 +186,13 @@ module ALULFTestSuite #(
   task run_test_suite();
     t.test_suite_begin( suite_name );
 
-    run_add_test_cases();
+    run_fp_test_cases();
   endtask
 
 endmodule
 
 //========================================================================
-// IterativeMulDivRemL7_test
+// ALULF_test
 //========================================================================
 
 module ALULF_test;
@@ -219,5 +219,4 @@ module ALULF_test;
     test_bench_end();
   end
 endmodule
-
 
