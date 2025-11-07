@@ -146,17 +146,18 @@ module BlimpVsram_sim;
   // Send data manually inside BRAM
   //----------------------------------------------------------------------
 
-  // function void init_mem(
-  //   input bit [31:0] addr,
-  //   input bit [31:0] data
-  // );
-  //   bram.mem_b0[ addr[17:2] ] = data[ 7: 0];
-  //   bram.mem_b1[ addr[17:2] ] = data[15: 8];
-  //   bram.mem_b2[ addr[17:2] ] = data[23:16];
-  //   bram.mem_b3[ addr[17:2] ] = data[31:24];
-  // endfunction
+  function void init_mem(
+    input bit [31:0] addr,
+    input bit [31:0] data
+  );
+    // bram.mem_b0[ addr[17:2] ] = data[ 7: 0];
+    // bram.mem_b1[ addr[17:2] ] = data[15: 8];
+    // bram.mem_b2[ addr[17:2] ] = data[23:16];
+    // bram.mem_b3[ addr[17:2] ] = data[31:24];
+    bram.sram_minion.sram.sram.sram_generic.mem[addr[8:2]] = data;
+  endfunction
 
-  // export "DPI-C" function init_mem;
+  export "DPI-C" function init_mem;
 
   //----------------------------------------------------------------------
   // Linetracing

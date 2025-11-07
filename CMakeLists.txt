@@ -348,10 +348,18 @@ foreach(V_SIM_FILE_REL_PATH ${BLIMP_SIMS})
   target_include_directories(${V_SIM_BIN} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_Verilog_DPI_INCLUDES})
 
   if(CMAKE_Verilog_COMPILER_ID STREQUAL "Verilator")
-    set(V_COMPILE_FLAGS "--timing --quiet-stats --CFLAGS \"-std=c++20 -fcoroutines\"")
+    set(V_COMPILE_FLAGS "--timing --quiet-stats -I${CMAKE_CURRENT_SOURCE_DIR} -I${CMAKE_CURRENT_SOURCE_DIR}/../ --CFLAGS \"-std=c++20 -fcoroutines\"")
     if(TRACE)
       set(V_COMPILE_FLAGS "${V_COMPILE_FLAGS} --trace --trace-structs")
     endif()
+    
+    # specifies top module, need to do this when including files from ip
+    set(EXTRA_VERILATOR_FLAGS "")
+    if(V_SIM_FILE STREQUAL "BlimpVsram_sim.v")
+      set(V_COMPILE_FLAGS "${V_COMPILE_FLAGS} --top-module BlimpVsram_sim")
+      set(EXTRA_VERILATOR_FLAGS --top-module BlimpVsram_sim)
+    endif()
+
     set_source_files_properties(
       ${V_SIM_FILE_PATH}
       PROPERTIES
@@ -392,6 +400,7 @@ foreach(V_SIM_FILE_REL_PATH ${BLIMP_SIMS})
     SOURCES ${V_SIM_FILE_REL_PATH}
     INCLUDE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}/../"
     DEPENDS ${SIM_DEPS_ABS}
+    VERILATOR_FLAGS ${EXTRA_VERILATOR_FLAGS}
   )
   add_dependencies(${V_SIM_BIN} ${V_SIM_BIN}-lint)
 endforeach(V_SIM_FILE_REL_PATH)
