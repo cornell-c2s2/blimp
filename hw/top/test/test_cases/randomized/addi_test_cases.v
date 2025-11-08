@@ -57,7 +57,7 @@ task test_case_randomized_addi_2_depchains();
   fl_reset();
 
   pc = 32'h200;
-  for (c = 0; c < 20; c = c + 1) begin
+  for (c = 0; c < 50; c = c + 1) begin
     a = ($urandom % 31) + 1;
     b = ($urandom % 31) + 1;
     imm1 = $urandom % 2048;
@@ -107,8 +107,16 @@ task test_case_randomized_addi_3_x0();
 endtask
 
 // Aggregator
-task run_randomized_addi_tests();
-  test_case_randomized_addi_1_basic();
-  test_case_randomized_addi_2_depchains();
-  test_case_randomized_addi_3_x0();
+task automatic run_randomized_addi_tests();
+  integer _run_rand;
+  // default: run randomized tests
+  _run_rand = 1;
+  if ($value$plusargs("run_randomized=%d", _run_rand)) begin
+    // plusarg provided; _run_rand updated
+  end
+  if (_run_rand != 0) begin
+    test_case_randomized_addi_1_basic();
+    test_case_randomized_addi_2_depchains();
+    test_case_randomized_addi_3_x0();
+  end
 endtask
