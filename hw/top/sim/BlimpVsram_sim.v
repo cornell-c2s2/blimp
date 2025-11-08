@@ -24,6 +24,8 @@ module BlimpVsram_sim;
   localparam p_num_phys_regs = 36;
   localparam p_opaq_bits     = 8;
   localparam p_seq_num_bits  = 5;
+  localparam p_num_entries   = 1024;
+  localparam p_num_bits      = $clog2( p_num_entries );
   
   //----------------------------------------------------------------------
   // Setup
@@ -92,14 +94,14 @@ module BlimpVsram_sim;
 
   MemNetReq #(
     .p_opaq_bits (p_opaq_bits)
-  ) bram_req();
+  ) sram_req();
   MemNetReq #(
     .p_opaq_bits (p_opaq_bits)
   ) peripheral_req();
 
   MemNetResp #(
     .p_opaq_bits (p_opaq_bits)
-  ) bram_resp();
+  ) sram_resp();
   MemNetResp #(
     .p_opaq_bits (p_opaq_bits)
   ) peripheral_resp();
@@ -111,17 +113,22 @@ module BlimpVsram_sim;
   ) xbar (
     .clk (clk),
     .rst (rst),
+    // Clients
     .imem (mem_intf[0]),
     .dmem (mem_intf[1]),
     .spi  (spi_intf),
+    // Servers
+    .mem_req (sram_req),
+    .mem_resp(sram_resp),
     .*
   );
 
   SRAMMem #(
-    .p_opaq_bits (p_opaq_bits)
-  ) bram (
-    .req  (bram_req),
-    .resp (bram_resp),
+    .p_opaq_bits (p_opaq_bits),
+    .p_num_entries(p_num_entries)
+  ) sram (
+    .req  (sram_req),
+    .resp (sram_resp),
     .*
   );
 
@@ -143,18 +150,14 @@ module BlimpVsram_sim;
   assign unused = &{ spi_intf.req_rdy, spi_intf.resp_val, spi_intf.req_msg };
 
   //----------------------------------------------------------------------
-  // Send data manually inside BRAM
+  // Send data manually inside SRAM
   //----------------------------------------------------------------------
 
   function void init_mem(
     input bit [31:0] addr,
     input bit [31:0] data
   );
-    // bram.mem_b0[ addr[17:2] ] = data[ 7: 0];
-    // bram.mem_b1[ addr[17:2] ] = data[15: 8];
-    // bram.mem_b2[ addr[17:2] ] = data[23:16];
-    // bram.mem_b3[ addr[17:2] ] = data[31:24];
-    bram.sram_minion.sram.sram.sram_generic.mem[addr[8:2]] = data;
+    sram.sram_minion.sram.sram.mem[addr[p_num_bits+1:2]] = data;
   endfunction
 
   export "DPI-C" function init_mem;
