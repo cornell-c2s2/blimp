@@ -27,19 +27,37 @@ module BlimpV8TestSuite_add #(
 
   `include "hw/top/test/test_cases/directed/add_test_cases.v"
   `include "hw/top/test/test_cases/golden/add_test_cases.v"
-  task run_test_suite();
+  `include "hw/top/test/test_cases/randomized/add_test_cases.v"
+  task automatic run_test_suite();
+    // declare locals before any statements (required by many SV tools)
+    int _run_rand;
+
     h.t.test_suite_begin( suite_name );
     run_directed_add_tests();
     run_golden_add_tests();
+
+    // Control randomized tests via plusarg: +run_randomized=0 or +run_randomized=1
+    _run_rand = 1; // default: run randomized
+    if ($value$plusargs("run_randomized=%d", _run_rand)) begin
+      // plusarg provided; _run_rand now holds it
+    end
+    if (_run_rand != 0) begin
+      run_randomized_add_tests();
+    end
   endtask
 endmodule
 
 module BlimpV8_add_test;
   BlimpV8TestSuite_add #(1)                 suite_1();
+  // verilog_lint: waive module-parameter -- project prefers positional params here
   BlimpV8TestSuite_add #(2, 8, 5, 36, 1, 1) suite_2();
+  // verilog_lint: waive module-parameter -- project prefers positional params here
   BlimpV8TestSuite_add #(3, 4, 3, 33, 1, 1) suite_3();
+  // verilog_lint: waive module-parameter -- project prefers positional params here
   BlimpV8TestSuite_add #(4,32, 4, 50, 3, 1) suite_4();
+  // verilog_lint: waive module-parameter -- project prefers positional params here
   BlimpV8TestSuite_add #(5, 2, 2, 48, 1, 3) suite_5();
+  // verilog_lint: waive module-parameter -- project prefers positional params here
   BlimpV8TestSuite_add #(6, 4, 6, 42, 3, 3) suite_6();
   int s;
 
