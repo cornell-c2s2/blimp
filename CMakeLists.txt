@@ -128,6 +128,15 @@ set(TRACE 0)
 endif()
 
 #-------------------------------------------------------------------------
+# Waveforms
+#-------------------------------------------------------------------------
+# Disable by default for speed
+
+if(NOT DEFINED WAVES)
+set(WAVES 0)
+endif()
+
+#-------------------------------------------------------------------------
 # Coverage Reporting
 #-------------------------------------------------------------------------
 # Disable by default for speed
@@ -252,6 +261,9 @@ foreach(V_TEST_FILE_REL_PATH ${V_TEST_FILES})
 
   if(CMAKE_Verilog_COMPILER_ID STREQUAL "VCS")
     target_link_options(${V_TEST_BIN} PRIVATE -full64 -xprop=tmerge)
+    if(WAVES)
+      target_link_options(${V_TEST_BIN} PRIVATE +vcs+dumpvars+${V_TEST_BIN}.vcd +vcs+vcdpluson +vcs+vcdplusmemon)
+    endif()
     if(COVERAGE)
       target_link_options(${V_TEST_BIN} PRIVATE -cm line+cond+tgl+fsm+branch -cm_dir ${V_TEST_BIN}.vdb)
     endif()

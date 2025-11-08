@@ -192,4 +192,6 @@ set(BlimpV8_TESTS
   BlimpV8_test/BlimpV8_divu_test.v
   BlimpV8_test/BlimpV8_rem_test.v
   BlimpV8_test/BlimpV8_remu_test.v
+  
+  BlimpV8_test/BlimpV8_ALL_test.v
 )

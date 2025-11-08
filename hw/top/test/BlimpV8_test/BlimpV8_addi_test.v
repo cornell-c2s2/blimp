@@ -25,6 +25,8 @@ module BlimpV8TestSuite_addi #(
     .p_mem_recv_intv_delay (p_mem_recv_intv_delay)
   ) h();
 
+  integer seed = 32'hDEADBEEF;
+
   `include "hw/top/test/test_cases/directed/addi_test_cases.v"
   `include "hw/top/test/test_cases/golden/addi_test_cases.v"
   `include "hw/top/test/test_cases/randomized/addi_test_cases.v"
