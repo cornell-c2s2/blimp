@@ -9,7 +9,8 @@
 `include "ip/sram/rtl/mem-msgs.sv"
 
 module SRAMMem #(
-  parameter p_opaq_bits = 8
+  parameter p_opaq_bits = 8,
+  parameter p_num_entries = 256
 )(
   input  logic clk,
   input  logic rst,
@@ -21,7 +22,11 @@ module SRAMMem #(
   mem_resp_4B_t minion_reqstream_msg;
   mem_req_4B_t  minion_respstream_msg;
 
-  sram_SRAMMinion sram_minion (
+  sram_SRAMMinion
+  #(
+    .p_num_entries(p_num_entries)
+  ) sram_minion 
+  (
     .clk        (clk),
     .reset      (rst),
 
@@ -37,6 +42,7 @@ module SRAMMem #(
   // Convert from MemNetReq to minion_reqstream_msg
   assign minion_reqstream_msg.type_ = req.msg.op;
   assign minion_reqstream_msg.opaque = req.msg.opaque;
+  assign minion_reqstream_msg.origin = req.msg.origin;
   assign minion_reqstream_msg.addr  = req.msg.addr;
   assign minion_reqstream_msg.strb  = req.msg.strb;
   assign minion_reqstream_msg.data  = req.msg.data;
@@ -44,6 +50,7 @@ module SRAMMem #(
   // Convert from minion_respstream_msg to MemNetResp
   assign resp.msg.op      = t_op'(minion_respstream_msg.type_);
   assign resp.msg.opaque  = minion_respstream_msg.opaque;
+  assign resp.msg.origin  = minion_respstream_msg.origin;
   assign resp.msg.addr    = minion_respstream_msg.addr;
   assign resp.msg.strb    = minion_respstream_msg.strb;
   assign resp.msg.data    = minion_respstream_msg.data;
