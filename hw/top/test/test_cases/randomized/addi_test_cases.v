@@ -2,6 +2,18 @@
 // addition and x0 behavior. Uses $urandom for randomness and emits
 // assembly strings via h.asm so matches the golden/test style.
 
+// Seed control for $urandom: can be overridden with +seed=<value>
+// Example: +seed=12345
+integer seed;
+initial begin
+  if (!$value$plusargs("seed=%d", seed)) begin
+    seed = 32'hDEADBEEF; // default deterministic seed
+  end
+  // Initialize $urandom with the chosen seed so test runs are repeatable.
+  $urandom(seed);
+  $display("[addi_test_cases] Using seed: %0d", seed);
+end
+
 // Emit addi instruction from PC (pc passed explicitly to keep API simple)
 task emit_addi_inst;
   input [31:0] pc_in;
