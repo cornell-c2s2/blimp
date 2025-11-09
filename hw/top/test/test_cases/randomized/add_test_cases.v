@@ -17,7 +17,8 @@ initial begin
     seed = 32'hDEADBEEF; // default deterministic seed
   end
   // Initialize $urandom with the chosen seed so test runs are repeatable.
-  $urandom(seed);
+  // Assign the return so the simulator treats $urandom as a function.
+  seed = $urandom(seed);
   $display("[add_test_cases] Using seed: %0d", seed);
 end
 
