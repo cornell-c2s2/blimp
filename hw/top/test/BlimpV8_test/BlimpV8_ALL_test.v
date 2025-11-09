@@ -73,6 +73,7 @@ module BlimpV8_every_test;
 
   `include "hw/top/test/test_cases/randomized/add_test_cases.v"
   `include "hw/top/test/test_cases/randomized/addi_test_cases.v"
+  `include "hw/top/test/test_cases/randomized/bne_test_cases.v"
   `include "hw/top/test/test_cases/randomized/lw_test_cases.v"
 
   int s;
@@ -139,7 +140,8 @@ module BlimpV8_every_test;
     
     if ((s <= 0) || (s == 55)) run_randomized_add_tests();
     if ((s <= 0) || (s == 56)) run_randomized_addi_tests();
-    if ((s <= 0) || (s == 57)) run_randomized_lw_tests();
+    if ((s <= 0) || (s == 57)) run_randomized_bne_tests();
+    if ((s <= 0) || (s == 58)) run_randomized_lw_tests();
 
     test_bench_end();
   end

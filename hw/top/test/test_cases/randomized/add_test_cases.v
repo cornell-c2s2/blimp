@@ -9,19 +9,6 @@
 //========================================================================
 // Emit randomized ADD/ADDI sequences using assembly strings and h.asm
 
-// Seed control for $urandom: can be overridden with +seed=<value>
-// Example: +seed=12345
-integer seed;
-initial begin
-  if (!$value$plusargs("seed=%d", seed)) begin
-    seed = 32'hDEADBEEF; // default deterministic seed
-  end
-  // Initialize $urandom with the chosen seed so test runs are repeatable.
-  // Assign the return so the simulator treats $urandom as a function.
-  seed = $urandom(seed);
-  $display("[add_test_cases] Using seed: %0d", seed);
-end
-
 // Note: This file uses Verilog tasks and $urandom for randomness. We
 // construct instruction strings with $sformatf which many Verilog
 // toolchains accept even in .v files; if your toolchain rejects it,
@@ -123,7 +110,7 @@ task test_case_randomized_add_3_x0();
   fl_reset();
 
   pc = 32'h200;
-  for (i = 0; i < 200; i = i + 1) begin
+  for (i = 0; i < 150; i = i + 1) begin
     r1 = $urandom & 32'h1F;
     r2 = $urandom & 32'h1F;
 

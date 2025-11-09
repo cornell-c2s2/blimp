@@ -3,18 +3,6 @@
 //========================================================================
 // Emits randomized BNE instruction sequences using assembly strings and h.asm
 
-// Seed control for $urandom: can be overridden with +seed=<value>
-// Example: +seed=12345
-integer seed;
-initial begin
-  if (!$value$plusargs("seed=%d", seed)) begin
-    seed = 32'hDEADBEEF; // default deterministic seed for bne tests
-  end
-  // Initialize $urandom with the chosen seed so test runs are repeatable.
-  seed = $urandom(seed);
-  $display("[bne_test_cases] Using seed: %0d", seed);
-end
-
 //------------------------------------------------------------------------
 // test_case_randomized_bne_1_simple
 //   Simple randomized BNE cases with clear taken vs not-taken behavior.

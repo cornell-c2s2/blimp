@@ -25,6 +25,8 @@ module BlimpV8TestSuite_bne #(
     .p_mem_recv_intv_delay (p_mem_recv_intv_delay)
   ) h();
 
+  integer seed = 32'hDEADBEEF;
+
   `include "hw/top/test/test_cases/directed/bne_test_cases.v"
   `include "hw/top/test/test_cases/randomized/bne_test_cases.v"
   `include "hw/top/test/test_cases/golden/bne_test_cases.v"
