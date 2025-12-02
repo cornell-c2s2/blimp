@@ -20,6 +20,8 @@ package UArch;
     // Arithmetic
     OP_ADD,
     OP_SUB,
+    OP_FADD_S,
+    OP_FSUB_S,
     OP_AND,
     OP_OR,
     OP_XOR,

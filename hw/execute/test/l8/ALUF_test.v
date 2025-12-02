@@ -2,6 +2,8 @@
 // ALULF_test.v
 //========================================================================
 // A testbench for our floating point arithmetic opertation
+// Author: Sumaia Jewena
+//========================================================================
 
 `include "defs/UArch.v"
 `include "hw/execute/execute_units_l8/ALUF.v"
