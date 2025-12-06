@@ -383,10 +383,9 @@ foreach(V_SIM_FILE_REL_PATH ${BLIMP_SIMS})
     
     # specifies top module, need to do this when including files from ip
     set(EXTRA_VERILATOR_FLAGS "")
-    if(V_SIM_FILE STREQUAL "BlimpVsram_sim.v")
-      set(V_COMPILE_FLAGS "${V_COMPILE_FLAGS} --top-module BlimpVsram_sim")
-      set(EXTRA_VERILATOR_FLAGS --top-module BlimpVsram_sim)
-    endif()
+    string(REGEX REPLACE "\\.v$" "" TOP_MODULE ${V_SIM_FILE})
+    set(V_COMPILE_FLAGS "${V_COMPILE_FLAGS} --top-module ${TOP_MODULE}")
+    set(EXTRA_VERILATOR_FLAGS --top-module ${TOP_MODULE})
 
     set_source_files_properties(
       ${V_SIM_FILE_PATH}
