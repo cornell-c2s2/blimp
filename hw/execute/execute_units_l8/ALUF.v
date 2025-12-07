@@ -1,5 +1,5 @@
 //========================================================================
-// ALULF.v
+// ALUF.v
 //========================================================================
 // Floating-point adder (IEEE-754 single precision) with dynamic
 // normalization and round-to-nearest-even (REN) using guard/round/sticky.
@@ -12,8 +12,8 @@
 // Author: Sumaia Jewena
 //========================================================================
 
-`ifndef HW_EXECUTE_EXECUTE_VARIANTS_L1_ALULF_V
-`define HW_EXECUTE_EXECUTE_VARIANTS_L1_ALULF_V
+`ifndef HW_EXECUTE_EXECUTE_VARIANTS_L1_ALUF_V
+`define HW_EXECUTE_EXECUTE_VARIANTS_L1_ALUF_V
 
 `include "defs/UArch.v"
 `include "intf/D__XIntf.v"
@@ -21,7 +21,7 @@
 
 import UArch::*;
 
-module ALULF (
+module ALUF (
   input  logic clk,
   input  logic rst,
 
@@ -83,7 +83,7 @@ module ALULF (
   end
 
   // --------------------------------------------------------------------
-  // Floating-point Add (IEEE-754 single) - Single Cycle Implementation
+  // Floating-point Add (IEEE-754 single)
   // --------------------------------------------------------------------
   
   logic [31:0] op1, op2_raw, op2;
@@ -97,7 +97,6 @@ module ALULF (
     else
       op2 = op2_raw;
   end
-
 
   // Field extracts
   logic        s1, s2;
@@ -399,4 +398,4 @@ module ALULF (
 
 endmodule
 
-`endif // HW_EXECUTE_EXECUTE_VARIANTS_L1_ALULF_V
+`endif // HW_EXECUTE_EXECUTE_VARIANTS_L1_ALUF_V
