@@ -1,7 +1,9 @@
 //========================================================================
-// ALULF_test.v
+// ALUF_test.v
 //========================================================================
 // A testbench for our floating point arithmetic opertation
+// Author: Sumaia Jewena
+//========================================================================
 
 `include "defs/UArch.v"
 `include "hw/execute/execute_units_l8/ALUF.v"
@@ -12,11 +14,11 @@ import UArch::*;
 import TestEnv::*;
 
 //========================================================================
-// ALULFTestSuite
+// ALUFTestSuite
 //========================================================================
 // A test suite for the floating point arithmetic
 
-module ALULFTestSuite #(
+module ALUFTestSuite #(
   parameter p_suite_num    = 0,
   parameter p_seq_num_bits = 5,
 
@@ -25,7 +27,7 @@ module ALULFTestSuite #(
 );
 
   //verilator lint_off UNUSEDSIGNAL
-  string suite_name = $sformatf("%0d: ALULFTestSuite_%0d_%0d_%0d", 
+  string suite_name = $sformatf("%0d: ALUFTestSuite_%0d_%0d_%0d", 
                                 p_suite_num, p_seq_num_bits, 
                                 p_D_send_intv_delay, p_W_recv_intv_delay);
   //verilator lint_on UNUSEDSIGNAL
@@ -49,7 +51,7 @@ module ALULFTestSuite #(
     .p_seq_num_bits (p_seq_num_bits)
   ) X__W_intf();
 
-  ALULF dut (
+  ALUF dut (
     .D (D__X_intf),
     .W (X__W_intf),
     .*
@@ -192,16 +194,16 @@ module ALULFTestSuite #(
 endmodule
 
 //========================================================================
-// ALULF_test
+// ALUF_test
 //========================================================================
 
-module ALULF_test;
-  ALULFTestSuite #(1)          suite_1();
-  // ALULFTestSuite #(2, 6, 0, 0) suite_2();
-  // ALULFTestSuite #(3, 3, 0, 0) suite_3();
-  // ALULFTestSuite #(4, 4, 3, 0) suite_4();
-  // ALULFTestSuite #(5, 9, 0, 3) suite_5();
-  // ALULFTestSuite #(6, 5, 3, 3) suite_6();
+module ALUF_test;
+  ALUFTestSuite #(1)          suite_1();
+  ALUFTestSuite #(2, 6, 0, 0) suite_2();
+  ALUFTestSuite #(3, 3, 0, 0) suite_3();
+  ALUFTestSuite #(4, 4, 3, 0) suite_4();
+  ALUFTestSuite #(5, 9, 0, 3) suite_5();
+  ALUFTestSuite #(6, 5, 3, 3) suite_6();
 
   int s;
 
@@ -210,11 +212,11 @@ module ALULF_test;
     s = get_test_suite();
 
     if ((s <= 0) || (s == 1)) suite_1.run_test_suite();
-    // if ((s <= 0) || (s == 2)) suite_2.run_test_suite();
-    // if ((s <= 0) || (s == 3)) suite_3.run_test_suite();
-    // if ((s <= 0) || (s == 4)) suite_4.run_test_suite();
-    // if ((s <= 0) || (s == 5)) suite_5.run_test_suite();
-    // if ((s <= 0) || (s == 6)) suite_6.run_test_suite();
+    if ((s <= 0) || (s == 2)) suite_2.run_test_suite();
+    if ((s <= 0) || (s == 3)) suite_3.run_test_suite();
+    if ((s <= 0) || (s == 4)) suite_4.run_test_suite();
+    if ((s <= 0) || (s == 5)) suite_5.run_test_suite();
+    if ((s <= 0) || (s == 6)) suite_6.run_test_suite();
 
     test_bench_end();
   end
