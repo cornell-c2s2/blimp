@@ -343,7 +343,8 @@ module ALUF (
   // Operation select
   // --------------------------------------------------------------------
   
-  rv_uop uop = D_reg.uop;
+  rv_uop uop;
+  assign uop = D_reg.uop;
 
   always_comb begin
     unique case ( uop )
@@ -366,9 +367,22 @@ module ALUF (
   assign W.ppreg   = D_reg.ppreg;
 
   // Interface signals for coverage
-  assign adder_intf_inst.operand_one = D_reg.op1;
-  assign adder_intf_inst.operand_two = D_reg.op2;
-  assign adder_intf_inst.reset = rst;
+
+  assign adder_intf_inst.signed_exponent_one = {s1,e1};
+  assign adder_intf_inst.signed_exponent_two = {s2,e2};
+
+  assign adder_intf_inst.internal_ground            = guard;
+  assign adder_intf_inst.internal_roundb            = roundb;
+  assign adder_intf_inst.internal_sticky            = sticky;
+  assign adder_intf_inst.internal_last_bit_mantissa = lsb;
+
+  assign adder_intf_inst.internal_denorm_one        = is_denorm1;
+  assign adder_intf_inst.internal_denorm_two        = is_denorm2;
+
+  assign adder_intf_inst.internal_nan_one           = is_nan1;
+  assign adder_intf_inst.internal_nan_two           = is_nan2;
+
+  assign adder_intf_inst.reset             = rst;
 
   // --------------------------------------------------------------------
   // Trace utilities
