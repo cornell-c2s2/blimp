@@ -53,16 +53,16 @@ module ALUFTestSuite #(
     .p_seq_num_bits (p_seq_num_bits)
   ) X__W_intf();
 
-//   adder_intf adder_intf_inst(clk);
+  adder_intf adder_intf_inst(clk);
 
-// `ifndef VERILATOR
-//   adder_cvg cvg = new(adder_intf_inst);
-// `endif
+`ifndef VERILATOR
+  adder_cvg cvg = new(adder_intf_inst);
+`endif
 
   ALUF dut (
     .D (D__X_intf),
     .W (X__W_intf),
-    // .adder_intf_inst(adder_intf_inst),
+    .adder_intf_inst(adder_intf_inst),
     .*
   );
 
@@ -230,4 +230,3 @@ module ALUF_test;
     test_bench_end();
   end
 endmodule
-
