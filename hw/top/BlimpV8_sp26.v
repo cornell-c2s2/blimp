@@ -157,7 +157,7 @@ module BlimpV8_sp26 #(
   assign trace_enq_msg.wen   = commit_notif.wen;
   assign trace_enq_val       = commit_notif.val;
 
-  assign trace_deq_rdy       = inst_trace_deq_rdy;
+  assign trace_deq_rdy       = inst_trace_deq_rdy | ~debug;
   
   cmn_Queue #(
     .p_type      (`CMN_QUEUE_PIPE),
