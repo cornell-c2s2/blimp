@@ -24,7 +24,7 @@ module BlimpVsram_sim;
   localparam p_num_phys_regs = 36;
   localparam p_opaq_bits     = 8;
   localparam p_seq_num_bits  = 5;
-  localparam p_num_entries   = 1024;
+  localparam p_num_entries   = 65536;
   localparam p_num_bits      = $clog2( p_num_entries );
   
   //----------------------------------------------------------------------

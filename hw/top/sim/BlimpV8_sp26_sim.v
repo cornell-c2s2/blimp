@@ -17,7 +17,7 @@
 `include "hw/top/sim/utils/SimUtils.v"
 `include "intf/MemIntf.v"
 `include "intf/InstTraceNotif.v"
-// `include "hw/top/sim/utils/FLPeripherals.v"
+`include "hw/top/sim/utils/FLPeripherals.v"
 
 import "DPI-C" context function void load_elf ( string elf_file );
 
@@ -27,7 +27,7 @@ module BlimpV8_sp26_sim;
   localparam p_num_phys_regs = 36;
   localparam p_opaq_bits     = 8;
   localparam p_seq_num_bits  = 5;
-  localparam p_num_entries   = 1024;
+  localparam p_num_entries   = 65536;
   localparam p_num_bits      = $clog2( p_num_entries );
   
   //----------------------------------------------------------------------
@@ -50,19 +50,6 @@ module BlimpV8_sp26_sim;
     .p_opaq_bits (p_opaq_bits)
   ) mem_intf[2]();
   
-  // genvar i;
-  // generate
-  //   for (i = 0; i < 2; i = i + 1) begin : mem_intf_wrapper
-  //     assign mem_intf[i].req_val = mem_intf_blimp[i].req_val;
-  //     assign mem_intf_blimp[i].req_rdy = mem_intf[i].req_rdy;
-  //     assign mem_intf[i].req_msg = mem_intf_blimp[i].req_msg;
-
-  //     assign mem_intf_blimp[i].resp_val = mem_intf[i].resp_val;
-  //     assign mem_intf[i].resp_rdy = mem_intf_blimp[i].resp_rdy;
-  //     assign mem_intf_blimp[i].resp_msg = mem_intf[i].resp_msg;
-  //   end
-  // endgenerate
-
   InstTraceNotif inst_trace_notif();
 
   BlimpV8_sp26 #(
@@ -125,6 +112,9 @@ module BlimpV8_sp26_sim;
   MemNetReq #(
     .p_opaq_bits (p_opaq_bits)
   ) sysarr_ctrl_req();
+  MemNetReq #(
+    .p_opaq_bits (p_opaq_bits)
+  ) peripheral_req();
 
   MemNetResp #(
     .p_opaq_bits (p_opaq_bits)
@@ -138,6 +128,9 @@ module BlimpV8_sp26_sim;
   MemNetResp #(
     .p_opaq_bits (p_opaq_bits)
   ) sysarr_ctrl_resp();
+  MemNetResp #(
+    .p_opaq_bits (p_opaq_bits)
+  ) peripheral_resp();
 
   logic go;
 
@@ -159,7 +152,9 @@ module BlimpV8_sp26_sim;
     .cpu_ctrl_req     (cpu_ctrl_req),
     .cpu_ctrl_resp    (cpu_ctrl_resp),
     .sysarr_ctrl_req  (sysarr_ctrl_req),
-    .sysarr_ctrl_resp (sysarr_ctrl_resp)
+    .sysarr_ctrl_resp (sysarr_ctrl_resp),
+    .peripheral_req   (peripheral_req),
+    .peripheral_resp  (peripheral_resp)
   );
 
   SRAMMem #(
@@ -168,6 +163,16 @@ module BlimpV8_sp26_sim;
   ) sram (
     .req  (sram_req),
     .resp (sram_resp),
+    .*
+  );
+
+  FLPeripherals #(
+    .p_send_intv_delay ( 1 ),
+    .p_recv_intv_delay ( 1 ),
+    .p_opaq_bits       (p_opaq_bits)
+  ) peripherals (
+    .req  (peripheral_req),
+    .resp (peripheral_resp),
     .*
   );
   
@@ -221,7 +226,7 @@ module BlimpV8_sp26_sim;
     #2;
     trace = "";
 
-    // trace = {trace, peripherals.trace( t.trace_level )};
+    trace = {trace, peripherals.trace( t.trace_level )};
     trace = {trace, " || "};
     trace = {trace, dut.trace( t.trace_level )};
     trace = {trace, " || "};
