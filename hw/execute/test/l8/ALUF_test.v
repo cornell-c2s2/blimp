@@ -7,6 +7,8 @@
 
 `include "defs/UArch.v"
 `include "hw/execute/execute_units_l8/ALUF.v"
+`include "hw/execute/test/test_cases/adder_intf.sv"
+`include "hw/execute/test/test_cases/fp_adder_cov.sv"
 `include "test/fl/TestIstream.v"
 `include "test/fl/TestOstream.v"
 
@@ -51,9 +53,16 @@ module ALUFTestSuite #(
     .p_seq_num_bits (p_seq_num_bits)
   ) X__W_intf();
 
+//   adder_intf adder_intf_inst(clk);
+
+// `ifndef VERILATOR
+//   adder_cvg cvg = new(adder_intf_inst);
+// `endif
+
   ALUF dut (
     .D (D__X_intf),
     .W (X__W_intf),
+    // .adder_intf_inst(adder_intf_inst),
     .*
   );
 

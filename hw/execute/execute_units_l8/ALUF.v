@@ -27,6 +27,7 @@ module ALUF (
 
   D__XIntf.X_intf D,
   X__WIntf.X_intf W
+  // adder_intf adder_intf_inst
 );
 
   localparam p_seq_num_bits   = D.p_seq_num_bits;
@@ -363,6 +364,11 @@ module ALUF (
   assign W.waddr   = D_reg.waddr;
   assign W.preg    = D_reg.preg;
   assign W.ppreg   = D_reg.ppreg;
+
+  //Interface signals for coverage
+  // assign adder_intf_inst.operand_one = D_reg.op1;
+  // assign adder_intf_inst.operand_two = D_reg.op2;
+  // assign adder_intf_inst.reset = rst;
 
   // --------------------------------------------------------------------
   // Trace utilities
