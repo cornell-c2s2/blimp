@@ -1,3 +1,6 @@
+
+`ifndef VERILATOR
+
 class adder_cvg;
 
   virtual adder_intf vif;
@@ -95,6 +98,8 @@ class adder_cvg;
       bins pos = {0};
       bins neg = {1};
   }
+
+  //TODO mantissa bits, zero.
 
   // Crosses must match coverpoint labels and end with semicolon
   mantissa_rounding : cross internal_last_bit_mantissa, internal_ground; // for rounding

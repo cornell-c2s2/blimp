@@ -26,8 +26,7 @@ module ALUF (
   input  logic rst,
 
   D__XIntf.X_intf D,
-  X__WIntf.X_intf W,
-  adder_intf adder_intf_inst
+  X__WIntf.X_intf W
 );
 
   localparam p_seq_num_bits   = D.p_seq_num_bits;
@@ -365,31 +364,6 @@ module ALUF (
   assign W.waddr   = D_reg.waddr;
   assign W.preg    = D_reg.preg;
   assign W.ppreg   = D_reg.ppreg;
-
-  // Interface signals for coverage
-
-  assign adder_intf_inst.signed_exponent_one = {s1,e1};
-  assign adder_intf_inst.signed_exponent_two = {s2,e2};
-
-  assign adder_intf_inst.internal_ground            = guard;
-  assign adder_intf_inst.internal_roundb            = roundb;
-  assign adder_intf_inst.internal_sticky            = sticky;
-  assign adder_intf_inst.internal_last_bit_mantissa = lsb;
-
-  assign adder_intf_inst.internal_denorm_one        = is_denorm1;
-  assign adder_intf_inst.internal_denorm_two        = is_denorm2;
-
-  assign adder_intf_inst.internal_nan_one           = is_nan1;
-  assign adder_intf_inst.internal_nan_two           = is_nan2;
-
-  assign adder_intf_inst.reset = rst;
-
-  assign adder_intf_inst.underflow = underflow;
-
-  assign adder_intf_inst.is_inf_one = is_inf1;
-  assign adder_intf_inst.is_inf_two = is_inf2;
-  assign adder_intf_inst.sign_one = s1;
-  assign adder_intf_inst.sign_two = s2;
 
   // --------------------------------------------------------------------
   // Trace utilities
