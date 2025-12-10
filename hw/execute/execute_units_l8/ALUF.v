@@ -342,7 +342,8 @@ module ALUF (
   // Operation select
   // --------------------------------------------------------------------
   
-  rv_uop uop = D_reg.uop;
+  rv_uop uop;
+  assign uop = D_reg.uop;
 
   always_comb begin
     unique case ( uop )
