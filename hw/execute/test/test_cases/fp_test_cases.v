@@ -1,7 +1,7 @@
 //========================================================================
 // fp_test_cases.v
 //========================================================================
-// Author: Rohan Kalluraya
+// Author: Sumaia Jewena, Rohan Kalluraya
 //========================================================================
 
 `ifndef FP_TEST_CASES_V
@@ -9,6 +9,8 @@
 
 //----------------------------------------------------------------------
 // test_case_fp_basic
+//----------------------------------------------------------------------
+// Integer addition test cases
 //----------------------------------------------------------------------
 
 task test_case_fp_basic();
@@ -66,14 +68,6 @@ task test_case_fp_rounding();
       recv('0, 0, 5'h1, 32'h3f800002, 1); // 1.000000238418579 
     end
 
-//     begin
-//       @(posedge clk);
-//       #0;
-// `ifndef VERILATOR
-//   cvg.sample_cvg();
-// `endif
-//     end
-
   join
 
   t.test_case_end();
@@ -112,14 +106,6 @@ task test_case_edge();
       recv('1, 3,      5'h2, 32'h00c00000, 1);
 
     end
-
-//     begin
-//       @(posedge clk);
-//       #0;
-// `ifndef VERILATOR
-//   cvg.sample_cvg();
-// `endif
-//     end
 
   join
 
