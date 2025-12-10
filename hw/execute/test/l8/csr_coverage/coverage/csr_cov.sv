@@ -4,7 +4,6 @@
 `include "intf/CSRIntf.v"
 `include "hw/execute/execute_units_l8/CSR.v"
 `include "hw/execute/execute_units_l8/CSRFile.v"
-`include "hw/execute/test/l8/csr_coverage/csr_trns.sv"
 
 import UArch::*;
 
@@ -34,8 +33,7 @@ module tb;
   );
 
   // Transaction/coverage object
-  csr_trns tr;
-  tr = new();
+  csr_trns tr = new();
 
   // Simple stimulus: randomize D message, drive into interface, sample from DUT
   typedef struct packed {

@@ -11,7 +11,7 @@ MAKEFILE_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 # files to compile: look for .sv files next to this Makefile and in
 # `coverage/` and `transactions/` subdirectories (paths are absolute so
 # the Makefile can be run from another working directory, e.g. `../../build`).
-SRCS := $(wildcard $(MAKEFILE_DIR)/*.sv $(MAKEFILE_DIR)/*.sv $(MAKEFILE_DIR)/*.sv)
+SRCS := $(wildcard $(MAKEFILE_DIR)/*.sv $(MAKEFILE_DIR)/transactions/*.sv $(MAKEFILE_DIR)/coverage/*.sv)
 
 # add CSR execute-unit sources located outside this test directory
 CSR_DIR_REL := ../../../execute_units_l8
