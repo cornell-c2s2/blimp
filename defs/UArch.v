@@ -20,6 +20,8 @@ package UArch;
     // Arithmetic
     OP_ADD,
     OP_SUB,
+    OP_FADD_S,
+    OP_FSUB_S,
     OP_AND,
     OP_OR,
     OP_XOR,
@@ -113,6 +115,8 @@ package UArch;
   parameter OP_DIVU_VEC   = num_ops'(1 << OP_DIVU   );
   parameter OP_REM_VEC    = num_ops'(1 << OP_REM    );
   parameter OP_REMU_VEC   = num_ops'(1 << OP_REMU   );
+  parameter OP_FADD_VEC = num_ops'(1 << OP_FADD_S );
+  parameter OP_FSUB_VEC = num_ops'(1 << OP_FSUB_S );
 
   parameter p_tinyrv1 = OP_ADD_VEC
                       | OP_MUL_VEC

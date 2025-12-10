@@ -43,4 +43,4 @@ set(CMAKE_OBJDUMP ${RISCV_TOOLCHAIN_BIN_PATH}/${CROSS_COMPILE}objdump CACHE FILE
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -D_RISCV -fno-builtin -march=rv32im -mabi=ilp32")
 set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -std=c++20")
 set(CMAKE_ASM_FLAGS "${CMAKE_C_FLAGS}")
-set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -march=rv32im -mabi=ilp32 -nostdlib -nostartfiles -Wl,--no-warn-rwx-segments -T${CMAKE_CURRENT_SOURCE_DIR}/scripts/blimp.ld -L${CMAKE_CURRENT_BINARY_DIR}" )
+set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -march=rv32im -mabi=ilp32 -nostdlib -nostartfiles -Wl,--no-warn-rwx-segments -L${CMAKE_CURRENT_BINARY_DIR}" )
