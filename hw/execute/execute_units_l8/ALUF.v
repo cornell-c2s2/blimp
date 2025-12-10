@@ -382,7 +382,14 @@ module ALUF (
   assign adder_intf_inst.internal_nan_one           = is_nan1;
   assign adder_intf_inst.internal_nan_two           = is_nan2;
 
-  assign adder_intf_inst.reset             = rst;
+  assign adder_intf_inst.reset = rst;
+
+  assign adder_intf_inst.underflow = underflow;
+
+  assign adder_intf_inst.is_inf_one = is_inf1;
+  assign adder_intf_inst.is_inf_two = is_inf2;
+  assign adder_intf_inst.sign_one = s1;
+  assign adder_intf_inst.sign_two = s2;
 
   // --------------------------------------------------------------------
   // Trace utilities

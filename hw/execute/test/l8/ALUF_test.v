@@ -54,12 +54,11 @@ module ALUFTestSuite #(
   ) X__W_intf();
 
   adder_intf adder_intf_inst(clk);
-
-`ifndef VERILATOR
+  
   adder_cvg cvg = new(adder_intf_inst);
-`endif
 
-  ALUF dut (
+  ALUF dut 
+  (
     .D (D__X_intf),
     .W (X__W_intf),
     .adder_intf_inst(adder_intf_inst),
