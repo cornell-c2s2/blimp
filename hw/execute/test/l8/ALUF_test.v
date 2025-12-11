@@ -1,10 +1,14 @@
 //========================================================================
-// ALULF_test.v
+// ALUF_test.v
 //========================================================================
 // A testbench for our floating point arithmetic opertation
+// Author: Sumaia Jewena
+//========================================================================
 
 `include "defs/UArch.v"
 `include "hw/execute/execute_units_l8/ALUF.v"
+`include "hw/execute/test/test_cases/adder_intf.sv"
+`include "hw/execute/test/test_cases/fp_adder_cov.sv"
 `include "test/fl/TestIstream.v"
 `include "test/fl/TestOstream.v"
 
@@ -12,11 +16,11 @@ import UArch::*;
 import TestEnv::*;
 
 //========================================================================
-// ALULFTestSuite
+// ALUFTestSuite
 //========================================================================
 // A test suite for the floating point arithmetic
 
-module ALULFTestSuite #(
+module ALUFTestSuite #(
   parameter p_suite_num    = 0,
   parameter p_seq_num_bits = 5,
 
@@ -25,7 +29,7 @@ module ALULFTestSuite #(
 );
 
   //verilator lint_off UNUSEDSIGNAL
-  string suite_name = $sformatf("%0d: ALULFTestSuite_%0d_%0d_%0d", 
+  string suite_name = $sformatf("%0d: ALUFTestSuite_%0d_%0d_%0d", 
                                 p_suite_num, p_seq_num_bits, 
                                 p_D_send_intv_delay, p_W_recv_intv_delay);
   //verilator lint_on UNUSEDSIGNAL
@@ -49,11 +53,43 @@ module ALULFTestSuite #(
     .p_seq_num_bits (p_seq_num_bits)
   ) X__W_intf();
 
-  ALULF dut (
+  adder_intf adder_intf_inst(clk);
+  
+  ALUF dut 
+  (
     .D (D__X_intf),
     .W (X__W_intf),
     .*
   );
+
+  // Interface signals for coverage
+
+  assign adder_intf_inst.signed_exponent_one = {dut.s1, dut.e1};
+  assign adder_intf_inst.signed_exponent_two = {dut.s2, dut.e2};
+
+  assign adder_intf_inst.internal_ground            = dut.guard;
+  assign adder_intf_inst.internal_roundb            = dut.roundb;
+  assign adder_intf_inst.internal_sticky            = dut.sticky;
+  assign adder_intf_inst.internal_last_bit_mantissa = dut.lsb;
+
+  assign adder_intf_inst.internal_denorm_one        = dut.is_denorm1;
+  assign adder_intf_inst.internal_denorm_two        = dut.is_denorm2;
+
+  assign adder_intf_inst.internal_nan_one           = dut.is_nan1;
+  assign adder_intf_inst.internal_nan_two           = dut.is_nan2;
+
+  assign adder_intf_inst.reset = dut.rst;
+
+  assign adder_intf_inst.underflow = dut.underflow;
+
+  assign adder_intf_inst.is_inf_one = dut.is_inf1;
+  assign adder_intf_inst.is_inf_two = dut.is_inf2;
+  assign adder_intf_inst.sign_one = dut.s1;
+  assign adder_intf_inst.sign_two = dut.s2;
+
+  `ifndef VERILATOR
+  adder_cvg cvg = new(adder_intf_inst);
+  `endif
 
   //----------------------------------------------------------------------
   // FL D Interface
@@ -192,16 +228,16 @@ module ALULFTestSuite #(
 endmodule
 
 //========================================================================
-// ALULF_test
+// ALUF_test
 //========================================================================
 
-module ALULF_test;
-  ALULFTestSuite #(1)          suite_1();
-  ALULFTestSuite #(2, 6, 0, 0) suite_2();
-  ALULFTestSuite #(3, 3, 0, 0) suite_3();
-  ALULFTestSuite #(4, 4, 3, 0) suite_4();
-  ALULFTestSuite #(5, 9, 0, 3) suite_5();
-  ALULFTestSuite #(6, 5, 3, 3) suite_6();
+module ALUF_test;
+  ALUFTestSuite #(1)          suite_1();
+  ALUFTestSuite #(2, 6, 0, 0) suite_2();
+  ALUFTestSuite #(3, 3, 0, 0) suite_3();
+  ALUFTestSuite #(4, 4, 3, 0) suite_4();
+  ALUFTestSuite #(5, 9, 0, 3) suite_5();
+  ALUFTestSuite #(6, 5, 3, 3) suite_6();
 
   int s;
 
@@ -219,4 +255,3 @@ module ALULF_test;
     test_bench_end();
   end
 endmodule
-
