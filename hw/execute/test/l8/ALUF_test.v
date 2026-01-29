@@ -70,7 +70,7 @@ module ALUFTestSuite #(
   assign adder_intf_inst.internal_ground            = dut.guard;
   assign adder_intf_inst.internal_roundb            = dut.roundb;
   assign adder_intf_inst.internal_sticky            = dut.sticky;
-  assign adder_intf_inst.internal_last_bit_mantissa = dut.lsb;
+  // assign adder_intf_inst.internal_last_bit_mantissa = dut.lsb;
 
   assign adder_intf_inst.internal_denorm_one        = dut.is_denorm1;
   assign adder_intf_inst.internal_denorm_two        = dut.is_denorm2;
@@ -79,8 +79,12 @@ module ALUFTestSuite #(
   assign adder_intf_inst.internal_nan_two           = dut.is_nan2;
 
   assign adder_intf_inst.reset = dut.rst;
-
+  assign adder_intf_inst.mantissa_one = dut.m1;
+  assign adder_intf_inst.mantissa_two = dut.m2;
   assign adder_intf_inst.underflow = dut.underflow;
+  assign adder_intf_inst.overflow = dut.overflow;
+
+  assign adder_intf_inst.rounding_norm = dut.mant_sum[24];
 
   assign adder_intf_inst.is_inf_one = dut.is_inf1;
   assign adder_intf_inst.is_inf_two = dut.is_inf2;

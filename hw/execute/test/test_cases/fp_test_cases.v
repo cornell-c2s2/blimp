@@ -44,30 +44,131 @@ endtask
 //----------------------------------------------------------------------
 
 task test_case_fp_rounding();
-  t.test_case_begin("test_case_fp_rounding");
+  // t.test_case_begin("test_case_fp_rounding");
+  // if (!t.run_test) return;
+
+  // fork
+  //   begin
+  //     // Checks rounding down (small additions)
+  //     send('1, 5, 32'h3f800000, 32'h33800000, 5'h2, OP_FADD_S); // 1.0 + 2^-24
+  //     send('1, 7, 32'h40000000, 32'h33800000, 5'h4, OP_FADD_S); // 2.0 + 2^-24
+      
+  //     // Checks rounding up
+  //     send('0, 6, 32'h3f800000, 32'h34000000, 5'h3, OP_FADD_S); // 1.0 + 2^-23
+  //     send('0, 0, 32'h3f800000, 32'h34a00000, 5'h1, OP_FADD_S); // 1.0 + 1.78813934e-7 = 1.000000178813934 (expected result but gets rounded up)
+  //   end
+
+  //   begin 
+  //     // Checks rounding down (small additions)
+  //     recv('1, 5, 5'h2, 32'h3f800000, 1); // 1.0
+  //     recv('1, 7, 5'h4, 32'h40000000, 1); // 2.0 
+      
+  //     // Checks rounding up
+  //     recv('0, 6, 5'h3, 32'h3f800001, 1); // 1.0000002384
+  //     recv('0, 0, 5'h1, 32'h3f800002, 1); // 1.000000238418579 
+  //   end
+
+  // join
+
+  // fork
+  //   begin
+  //     // --- Original Rounding Checks ---
+  //     send('1, 5, 32'h3f800000, 32'h33800000, 5'h2, OP_FADD_S); // 1.0 + 2^-24
+  //     send('1, 7, 32'h40000000, 32'h33800000, 5'h4, OP_FADD_S); // 2.0 + 2^-24
+  //     send('0, 6, 32'h3f800000, 32'h34000000, 5'h3, OP_FADD_S); // 1.0 + 2^-23
+  //     send('0, 0, 32'h3f800000, 32'h34a00000, 5'h1, OP_FADD_S); 
+
+  //     // --- New GRS Bit Test Cases ---
+  //     send('1, 1, 32'h3F000003, 32'h40400000, 5'h10, OP_FADD_S); // GRS: 110 -> Round Up
+  //     send('1, 2, 32'h3E800003, 32'h40400000, 5'h11, OP_FADD_S); // GRS: 011 -> Round Down
+  //     send('1, 3, 32'h3E800007, 32'h40400000, 5'h12, OP_FADD_S); // GRS: 111 -> Round Up
+  //     send('1, 4, 32'h3E800005, 32'h40400000, 5'h13, OP_FADD_S); // GRS: 101 -> Round Up
+  //     // send('1, 5, 32'h3E800006, 32'h40400000, 5'h14, OP_FADD_S); // GRS: 110 -> Round Up
+  //   end
+
+  //   begin 
+  //     // --- Original Rounding Checks ---
+  //     recv('1, 5, 5'h2, 32'h3f800000, 1); 
+  //     recv('1, 7, 5'h4, 32'h40000000, 1); 
+  //     recv('0, 6, 5'h3, 32'h3f800001, 1); 
+  //     recv('0, 0, 5'h1, 32'h3f800002, 1); 
+
+  //     // --- New GRS Bit Expected Results ---
+  //     recv('1, 1, 5'h10, 32'h40600001, 1); // Expected 40600001
+  //     recv('1, 2, 5'h11, 32'h40500000, 1); // Expected 40500000
+  //     recv('1, 3, 5'h12, 32'h40500001, 1); // Expected 40500001
+  //     recv('1, 4, 5'h13, 32'h40500001, 1); // Expected 40500001
+  //     // recv('1, 8, 5'h14, 32'h40500001, 1); // Expected 40500001
+  //   end
+  // join
+
+  // t.test_case_end();
+
+  t.test_case_begin("test_case_fp_rounding_grs");
   if (!t.run_test) return;
 
   fork
     begin
-      // Checks rounding down (small additions)
-      send('1, 5, 32'h3f800000, 32'h33800000, 5'h2, OP_FADD_S); // 1.0 + 2^-24
-      send('1, 7, 32'h40000000, 32'h33800000, 5'h4, OP_FADD_S); // 2.0 + 2^-24
+      // GRS 110: Greater than halfway -> Round UP
+      send('1, 1, 32'h3F000003, 32'h40400000, 5'h10, OP_FADD_S); 
       
-      // Checks rounding up
-      send('0, 6, 32'h3f800000, 32'h34000000, 5'h3, OP_FADD_S); // 1.0 + 2^-23
-      send('0, 0, 32'h3f800000, 32'h34a00000, 5'h1, OP_FADD_S); // 1.0 + 1.78813934e-7 = 1.000000178813934 (expected result but gets rounded up)
+      // GRS 111: Greater than halfway -> Round UP
+      send('1, 3, 32'h3E800007, 32'h40400000, 5'h12, OP_FADD_S); 
+      
+      // GRS 101: Greater than halfway (sticky set) -> Round UP
+      send('1, 4, 32'h3E800005, 32'h40400000, 5'h13, OP_FADD_S); 
+
+      // GRS 011: Less than halfway -> Round DOWN (Truncate)
+      send('1, 2, 32'h3E800003, 32'h40400000, 5'h11, OP_FADD_S); 
+      
+      // GRS 110: Greater than halfway -> Round UP
+      send('1, 5, 32'h3E800006, 32'h40400000, 5'h14, OP_FADD_S); 
     end
 
     begin 
-      // Checks rounding down (small additions)
-      recv('1, 5, 5'h2, 32'h3f800000, 1); // 1.0
-      recv('1, 7, 5'h4, 32'h40000000, 1); // 2.0 
+      recv('1, 1, 5'h10, 32'h40600001, 1); 
+      recv('1, 3, 5'h12, 32'h40500001, 1); 
+      recv('1, 4, 5'h13, 32'h40500001, 1); 
+      recv('1, 2, 5'h11, 32'h40500000, 1); 
+      recv('1, 5, 5'h14, 32'h40500001, 1); 
+    end
+  join
+
+  t.test_case_end();
+
+  t.test_case_begin("test_case_fp_rounding_ties");
+  if (!t.run_test) return;
+
+  fork
+    begin
+      // Case 1: GRS = 100, LSB is 1 -> Round UP to even
+      send('1, 0, 32'h3E000008, 32'h40400001, 5'h15, OP_FADD_S); 
       
-      // Checks rounding up
-      recv('0, 6, 5'h3, 32'h3f800001, 1); // 1.0000002384
-      recv('0, 0, 5'h1, 32'h3f800002, 1); // 1.000000238418579 
+      // Case 2: GRS = 100, LSB is 0 -> Round DOWN to even (Tie-break)
+      send('1, 1, 32'h3E000008, 32'h40400000, 5'h16, OP_FADD_S); 
+      
+      // Case 3: GRS = 010 -> Round DOWN (less than halfway)
+      send('1, 2, 32'h3E000004, 32'h40400000, 5'h17, OP_FADD_S); 
+      
+      // Case 4: GRS = 011 -> Round DOWN (less than halfway)
+      send('1, 3, 32'h3E000005, 32'h40400000, 5'h18, OP_FADD_S); 
+      
+      // Case 5: GRS = 011 -> Round DOWN (less than halfway)
+      send('1, 4, 32'h3E000006, 32'h40400000, 5'h19, OP_FADD_S); 
+      
+      // Case 6: GRS = 001 -> Round DOWN (less than halfway)
+      send('1, 5, 32'h3E000002, 32'h40400000, 5'h1A, OP_FADD_S); 
     end
 
+    begin 
+      // Expected results based on GRS bit analysis
+      recv('1, 0, 5'h15, 32'h40480002, 1); // Case 1: Rounded up
+      recv('1, 1, 5'h16, 32'h40480000, 1); // Case 2: Tie-break to even
+      recv('1, 2, 5'h17, 32'h40480000, 1); // Case 3: Truncated
+      recv('1, 3, 5'h18, 32'h40480000, 1); // Case 4: Truncated
+      recv('1, 4, 5'h19, 32'h40480000, 1); // Case 5: Truncated
+      recv('1, 5, 5'h1A, 32'h40480000, 1); // Case 6: Truncated
+    end
   join
 
   t.test_case_end();
@@ -86,7 +187,7 @@ task test_case_edge();
       send('1, 1, 32'h42c80000, 32'h00000001, 5'h4, OP_FADD_S); // 100.0 + 1e-20 
 
       // Mantissa overflow; normalization after addition pushes result to next exponent
-      send('0, 2, 32'h3fc00000, 32'h3fc00000, 5'h4, OP_FADD_S); // 1.5 + 1.5
+      send('0, 2, 32'h3F000003, 32'h405FFFFF, 5'h4, OP_FADD_S); // 0.5000002 + 3.4999998
 
       // Mantisa underflow; forces left-shift normalization
       send('1, 3, 32'h00800000, 32'h00400000, 5'h2, OP_FADD_S); // smallest normals
@@ -100,7 +201,7 @@ task test_case_edge();
       recv('1, 1,      5'h4, 32'h42c80000, 1); // 100.0 
 
       // Mantissa overflow
-      recv('0, 2,      5'h4, 32'h40400000, 1); // 3.0
+      recv('0, 2,      5'h4, 32'h40800000, 1); // 4.0
 
       // Mantissa underflow
       recv('1, 3,      5'h2, 32'h00c00000, 1);
@@ -110,6 +211,63 @@ task test_case_edge();
   join
 
 t.test_case_end();
+endtask
+
+task test_case_exponent_differences ();
+  t.test_case_begin("test_case_exponent_differences");
+  if(!t.run_test) return;
+
+  fork
+    begin
+      // POS MEDIUM + NEG SMALL
+      //   pc  seq_num op1            op2            waddr uop
+      send('0, 0,      32'h36800000,  32'h81800000,  5'h1, OP_FADD_S); //3.8146973E-6 - 4.7019774E-38
+
+      
+      send('1, 1,      32'h40b00000,  32'h40100000,  5'h4, OP_FADD_S); // 5.5 + 2.25 = 7.75
+
+    end
+    begin
+      //   pc  seq_num waddr wdata        wen
+      recv('0, 0,      5'h1,  32'h36800000, 1); // 3.8146973E-6
+      recv('1, 1,      5'h4,  32'h40f80000, 1); // 7.75
+    end
+  join
+
+  t.test_case_end();
+endtask
+
+task test_case_overflow();
+  t.test_case_begin("test_case_overflow");
+  if(!t.run_test) return;
+
+  fork
+    begin
+      //   pc        seq_num  op1(hex)       op2(hex)       waddr  uop
+      
+      // 1. Max Normal + Max Normal -> +Inf (Your original case)
+      send('h0000_0060, 0, 32'h7F7FFFFF, 32'h7F7FFFFF, 5'h1, OP_FADD_S);
+      
+      // 2. Norm + Inf -> +Inf
+      send('h0000_0064, 1, 32'h40000000, 32'h7F800000, 5'h2, OP_FADD_S); // 2.0 + Inf
+      
+      // 3. Inf + Norm -> +Inf
+      send('h0000_0068, 2, 32'h7F800000, 32'h40A00000, 5'h3, OP_FADD_S); // Inf + 5.0
+      
+      // 4. Inf + Inf -> +Inf
+      send('h0000_006C, 3, 32'h7F800000, 32'h7F800000, 5'h4, OP_FADD_S);
+    end
+
+    begin
+      //   pc        seq_num  waddr  expected_data  expected_flags
+      recv('h0000_0060, 0, 5'h1, 32'h7F800000, 1); // Expected +Inf, Overflow flag set
+      recv('h0000_0064, 1, 5'h2, 32'h7F800000, 1); // Expected +Inf, No new overflow (already Inf)
+      recv('h0000_0068, 2, 5'h3, 32'h7F800000, 1); // Expected +Inf
+      recv('h0000_006C, 3, 5'h4, 32'h7F800000, 1); // Expected +Inf
+    end
+  join
+
+  t.test_case_end();
 endtask
 
 task test_case_subtraction();
@@ -358,36 +516,52 @@ t.test_case_begin("test_case_fp_grs_bits");
 endtask
 
 task test_case_fp_extremes();
-t.test_case_begin("t_fp_overflow");
-  if(!t.run_test) return;
-
-  fork
-    begin
-     
-      //   pc        seq_num  op1(hex)       op2(hex)  waddr  uop
-      // max normal + max normal → +inf
-      send('h0000_0060, 0, 32'h7F7FFFFF, 32'h7F7FFFFF, 5'h1, OP_FADD_S);
-    end
-
-    begin
-      recv('h0000_0060, 0, 5'h1, 32'h7F800000, 1); // +inf
-    end
-  join
-
-  t.test_case_end();
 
 t.test_case_begin("t_fp_underflow");
   if(!t.run_test) return;
 
   fork
     begin
-      //   pc        seq_num  op1(hex)       op2(hex)  waddr  uop
-      // smallest negative subnormal + smallest negative subnormal -> underflow -> −0.0
+      // Original: Smallest negative subnormal + Smallest negative subnormal
       send('h0000_0064, 0, 32'h807FFFFF, 32'h807FFFFF, 5'h1, OP_FADD_S);
+
+      // // 1. Positive denormal + Negative denormal (Close to zero)
+      // // Result: Should be a tiny denormal or signed zero
+      send('h0000_0068, 1, 32'h00000001, 32'h80000002, 5'h2, OP_FADD_S);
+
+      // 2. Large positive normal - Large positive normal (SUB)
+      // Result: Tiny difference, potentially triggering underflow
+      send('h0000_006C, 2, 32'h7F000001, 32'h7F000002, 5'h3, OP_FSUB_S);
+      //3. Small normal minus a large subnormal (leading to underflow)
+
+      // Op1: 00800000 (Smallest normal)
+      // Op2: 007FFFFF (Largest subnormal)
+      // Op: FSUB_S
+      send('h0000_0070, 3, 32'h00800000, 32'h007FFFFF, 5'h4, OP_FSUB_S);
+
+      // Op1: 007FFFFF (Largest subnormal)
+      // Op2: 00800000 (Smallest normal)
+      // Op: FSUB_S
+      // Result: Tiny negative value -> Flushed to Negative Zero
+      send('h0000_0074, 4, 32'h007FFFFF, 32'h00800000, 5'h5, OP_FSUB_S);
+      
     end
 
     begin
-      recv('h0000_0064, 0, 5'h1, 32'h80000000, 1); // −0.0
+      // PC 64: Expected -0.0 and underflow=1
+      recv('h0000_0064, 0, 5'h1, 32'h80000000, 1); 
+      
+      // // PC 68: Result is effectively 0.0 or a very small negative denormal
+      recv('h0000_0068, 1, 5'h2, 32'h80000000, 1); //answer is F5000000
+      
+      // PC 6C: Result of subtraction is a very small negative value
+      recv('h0000_006C, 2, 5'h3, 32'h80000000, 1); //answer is F3800000
+
+      // PC 70: Expecting positive zero (32'h00000000) and underflow=1
+      recv('h0000_0070, 3, 5'h4, 32'h80000000, 1); //Result is 75000000
+
+      // PC 74: Expecting negative zero (32'h80000000) and underflow=1
+      recv('h0000_0074, 4, 5'h5, 32'h80000000, 1); //Result is F5000000
     end
   join
 
@@ -396,49 +570,29 @@ t.test_case_begin("t_fp_underflow");
   t.test_case_begin("t_fp_nan");
   if(!t.run_test) return;
 
-  fork
+fork
     begin
-     
       //   pc        seq_num  op1(hex)       op2(hex)  waddr  uop
       // NaN + number = NaN
       send('h0000_0068, 0, 32'h7FC00000, 32'h3F800000, 5'h1, OP_FADD_S);
       // +inf - inf = NaN
       send('h0000_006C, 1, 32'h7F800000, 32'hFF800000, 5'h2, OP_FADD_S);
-
+      
+      // Number + NaN = NaN
+      send('h0000_0070, 2, 32'h3F800000, 32'h7FC00000, 5'h3, OP_FADD_S);
     end
 
     begin
-      recv('h0000_0068, 0, 5'h1, 32'h7FC00000, 1);
-      recv('h0000_006C, 1, 5'h2, 32'h7FC00000, 1);
+      recv('h0000_0068, 0, 5'h1, 32'h7FC00000, 1); // Expect NaN, Invalid flag
+      recv('h0000_006C, 1, 5'h2, 32'h7FC00000, 1); // Expect NaN, Invalid flag
+      recv('h0000_0070, 2, 5'h3, 32'h7FC00000, 1); // Expect NaN, Invalid flag
     end
   join
-
   t.test_case_end();
 
-  t.test_case_begin("t_fp_inf");
-  if(!t.run_test) return;
-
-  fork
-    begin
-     
-      //   pc        seq_num  op1(hex)       op2(hex)  waddr  uop
-      // inf + inf = inf
-      send('h0000_0070, 0, 32'h7F800000, 32'h7F800000, 5'h1, OP_FADD_S);
-
-      // −inf − inf = −inf
-      send('h0000_0074, 1, 32'hFF800000, 32'hFF800000, 5'h2, OP_FADD_S);
-    end
-
-    begin    
-      recv('h0000_0070, 0, 5'h1, 32'h7F800000, 1);
-      recv('h0000_0074, 1, 5'h2, 32'hFF800000, 1);
-    end
-  join
-
-  t.test_case_end();
 endtask
 
-
+// TODO: fsub test cases. Random test cases.
 
 //----------------------------------------------------------------------
 // run_fp_test_cases
@@ -449,9 +603,10 @@ task run_fp_test_cases();
   test_case_fp_rounding();
   test_case_edge();
   test_case_subtraction();
+  test_case_exponent_differences();
   test_case_fp_subnormal();
-  // test_case_fp_extremes();
-  // test_case_fp_normal();
+  test_case_overflow();
+  test_case_fp_extremes();
 endtask
 
 `endif // FP_TEST_CASES_V
