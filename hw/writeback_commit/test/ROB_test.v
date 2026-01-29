@@ -228,6 +228,32 @@ module ROBTestSuite #(
 
     t.test_case_end();
   endtask
+  
+  task test_case_wraparound();
+    t.test_case_begin("test_case_wraparound");
+    if( !t.run_test ) return;
+
+    // Fill ROB
+    for (int i = 0; i < p_depth; i++)
+      send(p_msg_bits'(i), p_addr_bits'(i));
+
+    // Dequeue two
+    recv(0, 0);
+    recv(1, 1);
+
+    // Reinsert into freed slots
+    send('hAAAA, 0);
+    send('hBBBB, 1);
+
+    // Drain
+    recv(2, 2);
+    recv(3, 3);
+    recv('hAAAA, 0);
+    recv('hBBBB, 1);
+
+    t.test_case_end();
+  endtask
+
 
   //----------------------------------------------------------------------
   // run_test_suite
@@ -239,6 +265,7 @@ module ROBTestSuite #(
     test_case_basic();
     test_case_capacity();
     test_case_out_of_order();
+    test_case_wraparound();
   endtask
 
 endmodule
