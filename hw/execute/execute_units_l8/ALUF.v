@@ -286,8 +286,14 @@ module ALUF (
         // Use a for loop for left normalization
         for (int i = 0; i < 27; i++) begin
           if ((temp_sig[26] == 1'b0) && (temp_sig != 28'b0)) begin
-            temp_sig = temp_sig << 1;
-            temp_exp = temp_exp - 8'd1;
+            
+            if (temp_exp > 8'd1) begin
+              temp_sig = temp_sig << 1;
+              temp_exp = temp_exp - 8'd1;
+            end
+            else begin
+              temp_exp = 8'd0;
+            end
           end
         end
         sig_norm_ext = temp_sig;
