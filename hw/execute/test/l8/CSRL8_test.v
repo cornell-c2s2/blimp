@@ -9,6 +9,7 @@
 `include "defs/UArch.v"
 `include "hw/execute/execute_units_l8/CSR.v"
 `include "intf/CSRIntf.v"
+`include "hw/execute/test/test_cases/csr_cov.sv"
 `include "hw/execute/execute_units_l8/CSRFile.v"
 `include "test/fl/TestIstream.v"
 `include "test/fl/TestOstream.v"
@@ -74,6 +75,12 @@ module CSRTestSuite #(
     .rst (rst),
     .csr (CSR_intf)
   );
+
+  // Interface signals for coverage
+  `ifndef VERILATOR
+  csr_cvg csr_cvg_inst = new(CSR_intf, clk);
+  `endif
+  
   
   //----------------------------------------------------------------------
   // FL D Interface
