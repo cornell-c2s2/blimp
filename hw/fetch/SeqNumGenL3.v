@@ -181,7 +181,16 @@ module SeqNumGenL3 #(
     end
   endgenerate
 
+`ifndef SYNTHESIS
   assign curr_tail_incr = curr_tail_incr_arr.or();
+`else 
+  always_comb begin
+    curr_tail_incr = '0;
+    for (int k = 0; k < p_reclaim_width; k = k + 1) begin
+      curr_tail_incr = curr_tail_incr | curr_tail_incr_arr[k];
+    end
+  end
+`endif // SYNTHESIS
 
   always_ff @( posedge clk ) begin
     if( rst ) begin

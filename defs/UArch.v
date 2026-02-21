@@ -127,7 +127,7 @@ package UArch;
                       | OP_BNE_VEC;
   // verilator lint_on UNUSEDPARAM
 
-  function logic in_subset( 
+  function automatic logic in_subset( 
     logic [num_ops-1:0] subset, 
     logic [num_ops-1:0] op_vec
   );

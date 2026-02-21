@@ -201,7 +201,7 @@ module IterativeMulDivRemL7 (
         pc:      'x,
         seq_num: 'x,
         waddr:   'x,
-        uop:     'x,
+        uop:     rv_uop'('x),
         preg:    'x,
         ppreg:   'x
       };
@@ -229,7 +229,7 @@ module IterativeMulDivRemL7 (
         pc:      'x,
         seq_num: 'x,
         waddr:   'x,
-        uop:     'x,
+        uop:     rv_uop'('x),
         preg:    'x,
         ppreg:   'x
       };
