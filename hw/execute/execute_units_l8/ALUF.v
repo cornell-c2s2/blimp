@@ -368,6 +368,8 @@ module ALUF (
   // --------------------------------------------------------------------
   // Trace utilities
   // --------------------------------------------------------------------
+  
+`ifndef SYNTHESIS
   function int ceil_div_4( int val );
     return (val / 4) + ((val % 4) > 0 ? 1 : 0);
   endfunction
@@ -396,6 +398,7 @@ module ALUF (
     end
     return tr;
   endfunction
+`endif
 
 endmodule
 
