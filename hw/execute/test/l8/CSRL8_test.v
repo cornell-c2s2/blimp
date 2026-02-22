@@ -78,7 +78,11 @@ module CSRTestSuite #(
 
   // Interface signals for coverage
   `ifndef VERILATOR
-  csr_cvg csr_cvg_inst = new(CSR_intf, clk);
+  csr_cvg csr_cvg_inst = new(CSR_intf);
+  
+  always @(posedge clk) begin
+    csr_cvg_inst.sample(.waddr(X__W_intf.waddr), .wen(X__W_intf.wen));
+  end
   `endif
   
   
