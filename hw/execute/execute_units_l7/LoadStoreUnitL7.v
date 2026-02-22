@@ -254,7 +254,7 @@ module LoadStoreUnitL7 #(
         waddr:   'x,
         preg:    'x,
         ppreg:   'x,
-        uop:     'x,
+        uop:     rv_uop'('x),
         offset:  'x
       };
     else
@@ -274,7 +274,7 @@ module LoadStoreUnitL7 #(
         waddr:   'x,
         preg:    'x,
         ppreg:   'x,
-        uop:     'x,
+        uop:     rv_uop'('x),
         offset:  'x
       };
     else
