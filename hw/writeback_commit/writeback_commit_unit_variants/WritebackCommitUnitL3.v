@@ -136,6 +136,8 @@ module WritebackCommitUnitL3 #(
     Ex_waddr_sel   = '0;
     Ex_wdata_sel   = '0;
     Ex_wen_sel     = '0;
+    Ex_preg_sel    = '0;
+    Ex_ppreg_sel   = '0;
     Ex_val_sel     = '0;
     
     for (int i = 0; i < p_num_pipes; i = i + 1) begin
@@ -144,6 +146,8 @@ module WritebackCommitUnitL3 #(
       Ex_waddr_sel   = Ex_waddr_sel   | Ex_waddr_masked[i];
       Ex_wdata_sel   = Ex_wdata_sel   | Ex_wdata_masked[i];
       Ex_wen_sel     = Ex_wen_sel     | Ex_wen_masked[i];
+      Ex_preg_sel    = Ex_preg_sel    | Ex_preg_masked[i];
+      Ex_ppreg_sel   = Ex_ppreg_sel   | Ex_ppreg_masked[i];
       Ex_val_sel     = Ex_val_sel     | Ex_val_masked[i];
     end
   end
