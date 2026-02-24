@@ -1,11 +1,31 @@
 //========================================================================
-// fp_test_cases.v
+// fp_test_cases.sv
 //========================================================================
 // Author: Sumaia Jewena, Rohan Kalluraya
 //========================================================================
+// Coverage:
+//   - Normalized addition/subtraction
+//   - Exponent alignment (small/large deltas)
+//   - Sign handling
+//   - Normalization (left/right shifts)
+//   - Guard/Round/Sticky rounding (RNE)
+//   - Tie-to-even behavior
+//   - Subnormal operands
+//   - Zero and signed zero
+//   - Overflow to infinity
+//   - Underflow handling
+//   - NaN propagation
+//   - Random differential testing (C reference model)
+//
+// Rounding Mode: Round to Nearest, Ties to Even (RNE)
+// ================================================================
+`ifndef FP_TEST_CASES_SV
+`define FP_TEST_CASES_SV
 
-`ifndef FP_TEST_CASES_V
-`define FP_TEST_CASES_V
+
+// Import the C functions via DPI
+import "DPI-C" function int c_gold_fadd(int a, int b);
+import "DPI-C" function int c_gold_fsub(int a, int b);
 
 //----------------------------------------------------------------------
 // test_case_fp_basic
@@ -78,65 +98,6 @@ endtask
 //----------------------------------------------------------------------
 
 task test_case_fp_rounding();
-  // t.test_case_begin("test_case_fp_rounding");
-  // if (!t.run_test) return;
-
-  // fork
-  //   begin
-  //     // Checks rounding down (small additions)
-  //     send('1, 5, 32'h3f800000, 32'h33800000, 5'h2, OP_FADD_S); // 1.0 + 2^-24
-  //     send('1, 7, 32'h40000000, 32'h33800000, 5'h4, OP_FADD_S); // 2.0 + 2^-24
-      
-  //     // Checks rounding up
-  //     send('0, 6, 32'h3f800000, 32'h34000000, 5'h3, OP_FADD_S); // 1.0 + 2^-23
-  //     send('0, 0, 32'h3f800000, 32'h34a00000, 5'h1, OP_FADD_S); // 1.0 + 1.78813934e-7 = 1.000000178813934 (expected result but gets rounded up)
-  //   end
-
-  //   begin 
-  //     // Checks rounding down (small additions)
-  //     recv('1, 5, 5'h2, 32'h3f800000, 1); // 1.0
-  //     recv('1, 7, 5'h4, 32'h40000000, 1); // 2.0 
-      
-  //     // Checks rounding up
-  //     recv('0, 6, 5'h3, 32'h3f800001, 1); // 1.0000002384
-  //     recv('0, 0, 5'h1, 32'h3f800002, 1); // 1.000000238418579 
-  //   end
-
-  // join
-
-  // fork
-  //   begin
-  //     // --- Original Rounding Checks ---
-  //     send('1, 5, 32'h3f800000, 32'h33800000, 5'h2, OP_FADD_S); // 1.0 + 2^-24
-  //     send('1, 7, 32'h40000000, 32'h33800000, 5'h4, OP_FADD_S); // 2.0 + 2^-24
-  //     send('0, 6, 32'h3f800000, 32'h34000000, 5'h3, OP_FADD_S); // 1.0 + 2^-23
-  //     send('0, 0, 32'h3f800000, 32'h34a00000, 5'h1, OP_FADD_S); 
-
-  //     // --- New GRS Bit Test Cases ---
-  //     send('1, 1, 32'h3F000003, 32'h40400000, 5'h10, OP_FADD_S); // GRS: 110 -> Round Up
-  //     send('1, 2, 32'h3E800003, 32'h40400000, 5'h11, OP_FADD_S); // GRS: 011 -> Round Down
-  //     send('1, 3, 32'h3E800007, 32'h40400000, 5'h12, OP_FADD_S); // GRS: 111 -> Round Up
-  //     send('1, 4, 32'h3E800005, 32'h40400000, 5'h13, OP_FADD_S); // GRS: 101 -> Round Up
-  //     // send('1, 5, 32'h3E800006, 32'h40400000, 5'h14, OP_FADD_S); // GRS: 110 -> Round Up
-  //   end
-
-  //   begin 
-  //     // --- Original Rounding Checks ---
-  //     recv('1, 5, 5'h2, 32'h3f800000, 1); 
-  //     recv('1, 7, 5'h4, 32'h40000000, 1); 
-  //     recv('0, 6, 5'h3, 32'h3f800001, 1); 
-  //     recv('0, 0, 5'h1, 32'h3f800002, 1); 
-
-  //     // --- New GRS Bit Expected Results ---
-  //     recv('1, 1, 5'h10, 32'h40600001, 1); // Expected 40600001
-  //     recv('1, 2, 5'h11, 32'h40500000, 1); // Expected 40500000
-  //     recv('1, 3, 5'h12, 32'h40500001, 1); // Expected 40500001
-  //     recv('1, 4, 5'h13, 32'h40500001, 1); // Expected 40500001
-  //     // recv('1, 8, 5'h14, 32'h40500001, 1); // Expected 40500001
-  //   end
-  // join
-
-  // t.test_case_end();
 
   //Testing OP_FADD_S
 
@@ -278,7 +239,6 @@ task test_case_edge();
 
   fork
     begin
-      // Almost subtracting equal numbers
       send('0, 0, 32'h3f800000, 32'hbf7fffff, 5'h1, OP_FADD_S); // 1.0 + (-0.99999994)
 
       // One input dominates; tests right-shift alignment path
@@ -292,7 +252,6 @@ task test_case_edge();
     end
 
     begin
-      // // Almost subtracting equal numbers
       recv('0, 0,      5'h1, 32'h33800000, 1); // ~2^-24
 
       // One input dominates; tests right-shift alignment path
@@ -454,24 +413,29 @@ fork
 
   begin
     // --------------------------
-    // POS_SMALL + ZERO
+    // SUBNORM + ZERO
     // --------------------------
     send(1, '0, 32'h00000001, 32'h00000000, 5'h1, OP_FADD_S);
 
     // --------------------------
-    // POS_MEDIUM + ZERO
+    // SUBNORM + ZERO
     // --------------------------
     send(2, '0, 32'h00010000, 32'h00000000, 5'h2, OP_FADD_S);
 
     // --------------------------
     // NEG_SMALL + ZERO
     // --------------------------
-    send(3, '0, 32'h80000001, 32'h00000000, 5'h3, OP_FADD_S);
+    send(3, '0, 32'h87000001, 32'h00000000, 5'h3, OP_FADD_S);
 
     // --------------------------
-    // NEG_MEDIUM + ZERO
+    // NEG SUBNORM + ZERO
     // --------------------------
     send(4, '0, 32'h80010000, 32'h00000000, 5'h4, OP_FADD_S);
+
+    // --------------------------
+    // ZERO + POS_SMALL
+    // --------------------------
+    send(5, '0, 32'h00000000, 32'h07000000, 5'h5, OP_FADD_S);
 end
 
 begin
@@ -482,6 +446,7 @@ begin
     recv(2, '0, 5'h2, 32'h00010000, 1); // pos_medium + 0 = pos_medium
     recv(3, '0, 5'h3, 32'h80000001, 1); // neg_small + 0 = neg_small
     recv(4, '0, 5'h4, 32'h80010000, 1); // neg_medium + 0 = neg_medium
+    recv(5, '0, 5'h5, 32'h07000000, 1); // 0 + pos_small = pos_small
 end
 
 join
@@ -902,7 +867,56 @@ t.test_case_begin("t_fp_underflow");
 
 endtask
 
-// TODO: Random test cases.
+task test_case_single();
+  t.test_case_begin("test_case_random_failing");
+  if (!t.run_test) return;
+  fork
+    begin         
+      send(4, '0, 32'h658c9984, 32'hed83c034, 5'h4, OP_FADD_S);
+    end
+
+    begin
+        recv(4, '0, 5'h4, 32'hED83BFA7, 1); 
+    end
+  join
+  t.test_case_end();
+endtask
+
+task test_case_fp_random(input int num_tests);
+
+  // Pre-generate outside the fork
+  logic [31:0] ops1 [1024];
+  logic [31:0] ops2 [1024];
+  logic [31:0] exps [1024];
+
+  t.test_case_begin("test_case_fp_random");
+  if (!t.run_test) return;
+
+  for (int i = 0; i < num_tests; i++) begin
+    ops1[i] = $urandom();
+    ops2[i] = $urandom();
+    exps[i] = c_gold_fadd(ops1[i], ops2[i]);
+  end
+
+  fork
+    begin
+      for (int i = 0; i < num_tests; i++) begin
+        automatic int addr = 'h0000_0068 + (32'(i) * 4);
+        automatic logic [8:0] seq = i[8:0];
+        send(addr, seq, ops1[i], ops2[i], 5'h1, OP_FADD_S);
+      end
+    end
+    begin
+      for (int i = 0; i < num_tests; i++) begin
+        automatic int addr = 'h0000_0068 + (32'(i) * 4);
+        automatic logic [8:0] seq = i[8:0];
+        recv(addr, seq, 5'h1, exps[i], 1);
+      end
+    end
+  join
+
+  t.test_case_end();
+endtask
 
 //----------------------------------------------------------------------
 // run_fp_test_cases
@@ -916,8 +930,10 @@ task run_fp_test_cases();
   test_case_zero();
   test_case_overflow();
   test_case_fp_extremes();
+  test_case_fp_random(500);
+  test_case_single();
+
 endtask
 
-`endif // FP_TEST_CASES_V
-
+`endif // FP_TEST_CASES_SV
 

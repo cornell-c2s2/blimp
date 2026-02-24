@@ -40,7 +40,7 @@ module ALUFTestSuite #(
 
   logic clk, rst;
   TestUtils t( .* );
-
+  
   //----------------------------------------------------------------------
   // Instantiate design under test
   //----------------------------------------------------------------------
@@ -217,7 +217,7 @@ module ALUFTestSuite #(
   // Include test cases
   //----------------------------------------------------------------------
 
-  `include "hw/execute/test/test_cases/fp_test_cases.v"
+  `include "hw/execute/test/test_cases/fp_test_cases.sv"
 
   //----------------------------------------------------------------------
   // run_test_suite

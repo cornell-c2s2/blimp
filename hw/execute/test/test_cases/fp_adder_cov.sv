@@ -51,7 +51,7 @@ class adder_cvg;
 
     internal_signed_exponent_one : coverpoint vif.signed_exponent_one
     {
-        bins zero        = {9'b000000000, 9'b100000000};  // all zeros
+        bins zero_or_subnorm = {9'b000000000, 9'b100000000};  // all zeros
         bins pos_small   = {[9'b000000001:9'b000001111]}; // magnitude 1–15
         bins pos_medium  = {[9'b000010000:9'b011111111]}; // magnitude 16–255
         bins neg_small   = {[9'b100000001:9'b100001111]}; // magnitude 1–15
@@ -60,7 +60,7 @@ class adder_cvg;
 
     internal_signed_exponent_two : coverpoint vif.signed_exponent_two
     {
-        bins zero        = {9'b000000000, 9'b100000000};  // all zeros
+        bins zero_or_subnorm = {9'b000000000, 9'b100000000};  // all zeros
         bins pos_small   = {[9'b000000001:9'b000001111]}; // magnitude 1–15
         bins pos_medium  = {[9'b000010000:9'b011111111]}; // magnitude 16–255
         bins neg_small   = {[9'b100000001:9'b100001111]}; // magnitude 1–15

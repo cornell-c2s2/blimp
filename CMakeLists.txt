@@ -252,17 +252,29 @@ foreach(V_TEST_FILE_REL_PATH ${V_TEST_FILES})
   remove_extension(V_TEST_BIN ${V_TEST_FILE})
 
   add_executable(${V_TEST_BIN} ${V_TEST_FILE_PATH})
-  target_include_directories(${V_TEST_BIN} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_Verilog_DPI_INCLUDES})
+
+  # Add the C++ wrapper separately to avoid Verilator flag inheritance
+  target_sources(${V_TEST_BIN} PRIVATE 
+      "${CMAKE_CURRENT_SOURCE_DIR}/fl/fl_fpadd.cpp"
+  )
+  target_include_directories(${V_TEST_BIN} PRIVATE 
+  ${CMAKE_CURRENT_SOURCE_DIR} 
+  ${CMAKE_Verilog_DPI_INCLUDES}
+  "${CMAKE_CURRENT_SOURCE_DIR}/deps/softfloat/source/include"   # Added headers
+  )
 
   if(CMAKE_Verilog_COMPILER_ID STREQUAL "Verilator")
-    target_compile_options(${V_TEST_BIN} PRIVATE --timing --quiet-stats --CFLAGS "-std=c++20 -fcoroutines")
+    set(V_FLAGS "--timing --quiet-stats --CFLAGS \"-std=c++20 -fcoroutines\"")
     if(TRACE)
-      target_compile_options(${V_TEST_BIN} PRIVATE --trace --trace-structs --CFLAGS "-std=c++20 -fcoroutines")
+      set(V_FLAGS "${V_FLAGS} --trace --trace-structs")
     endif()
+    set_source_files_properties(${V_TEST_FILE_PATH} PROPERTIES COMPILE_FLAGS "${V_FLAGS}")
   endif()
 
   if(CMAKE_Verilog_COMPILER_ID STREQUAL "VCS")
     target_link_options(${V_TEST_BIN} PRIVATE -full64 -xprop=tmerge)
+    # Pass C++ flags through VCS to g++
+    target_link_options(${V_TEST_BIN} PRIVATE "-CFLAGS" "-std=c++20")
     if(WAVES)
       target_link_options(${V_TEST_BIN} PRIVATE +vcs+dumpvars+${V_TEST_BIN}.vcd +vcs+vcdpluson +vcs+vcdplusmemon)
     endif()
@@ -273,6 +285,9 @@ foreach(V_TEST_FILE_REL_PATH ${V_TEST_FILES})
 
   # Add our main simulation loop and libraries
   target_link_libraries(${V_TEST_BIN} PRIVATE FL_PROC)
+  target_link_libraries(${V_TEST_BIN} PRIVATE 
+  "${CMAKE_CURRENT_SOURCE_DIR}/deps/softfloat/build/Linux-x86_64-GCC/softfloat.a"
+  )
 
   # Track dependencies
   vdeps(TEST_DEPS
@@ -372,8 +387,18 @@ foreach(V_SIM_FILE_REL_PATH ${BLIMP_SIMS})
   get_leaf(V_SIM_FILE ${V_SIM_FILE_PATH})
   sim_name(V_SIM_BIN ${V_SIM_FILE})
 
-  add_executable(${V_SIM_BIN} ${V_SIM_FILE_PATH} "hw/top/sim/utils/load_elf.cpp")
-  target_include_directories(${V_SIM_BIN} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_Verilog_DPI_INCLUDES})
+  add_executable(${V_SIM_BIN} ${V_SIM_FILE_PATH})
+
+  # Add the C++ utility and wrapper files separately
+  target_sources(${V_SIM_BIN} PRIVATE 
+      "${CMAKE_CURRENT_SOURCE_DIR}/hw/top/sim/utils/load_elf.cpp" 
+      "${CMAKE_CURRENT_SOURCE_DIR}/fl/fl_fpadd.cpp"
+  )
+  target_include_directories(${V_SIM_BIN} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_Verilog_DPI_INCLUDES} 
+  "${CMAKE_CURRENT_SOURCE_DIR}/deps/softfloat/source/include")
+  target_link_libraries(${V_SIM_BIN} PRIVATE 
+    "${CMAKE_CURRENT_SOURCE_DIR}/deps/softfloat/build/Linux-x86_64-GCC/softfloat.a"
+  )
 
   if(CMAKE_Verilog_COMPILER_ID STREQUAL "Verilator")
     set(V_COMPILE_FLAGS "--timing --quiet-stats -I${CMAKE_CURRENT_SOURCE_DIR} -I${CMAKE_CURRENT_SOURCE_DIR}/../ --CFLAGS \"-std=c++20 -fcoroutines\"")
