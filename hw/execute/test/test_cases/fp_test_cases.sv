@@ -903,14 +903,18 @@ task test_case_fp_random(input int num_tests);
       for (int i = 0; i < num_tests; i++) begin
         automatic int addr = 'h0000_0068 + (32'(i) * 4);
         automatic logic [8:0] seq = i[8:0];
+        /* verilator lint_off WIDTHTRUNC */
         send(addr, seq, ops1[i], ops2[i], 5'h1, OP_FADD_S);
+        /* verilator lint_on WIDTHTRUNC */
       end
     end
     begin
       for (int i = 0; i < num_tests; i++) begin
         automatic int addr = 'h0000_0068 + (32'(i) * 4);
         automatic logic [8:0] seq = i[8:0];
+        /* verilator lint_off WIDTHTRUNC */
         recv(addr, seq, 5'h1, exps[i], 1);
+        /* verilator lint_on WIDTHTRUNC */
       end
     end
   join
