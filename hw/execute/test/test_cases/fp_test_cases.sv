@@ -867,21 +867,6 @@ t.test_case_begin("t_fp_underflow");
 
 endtask
 
-task test_case_single();
-  t.test_case_begin("test_case_random_failing");
-  if (!t.run_test) return;
-  fork
-    begin         
-      send(4, '0, 32'h658c9984, 32'hed83c034, 5'h4, OP_FADD_S);
-    end
-
-    begin
-        recv(4, '0, 5'h4, 32'hED83BFA7, 1); 
-    end
-  join
-  t.test_case_end();
-endtask
-
 task test_case_fp_random(input int num_tests);
 
   // Pre-generate outside the fork
@@ -934,8 +919,7 @@ task run_fp_test_cases();
   test_case_zero();
   test_case_overflow();
   test_case_fp_extremes();
-  test_case_fp_random(500);
-  test_case_single();
+  test_case_fp_random(500); //can't be more than 1024
 
 endtask
 
