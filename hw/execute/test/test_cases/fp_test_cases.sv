@@ -444,7 +444,7 @@ begin
     // --------------------------
     recv(1, '0, 5'h1, 32'h00000001, 1); // pos_small + 0 = pos_small
     recv(2, '0, 5'h2, 32'h00010000, 1); // pos_medium + 0 = pos_medium
-    recv(3, '0, 5'h3, 32'h80000001, 1); // neg_small + 0 = neg_small
+    recv(3, '0, 5'h3, 32'h87000001, 1); // neg_small + 0 = neg_small
     recv(4, '0, 5'h4, 32'h80010000, 1); // neg_medium + 0 = neg_medium
     recv(5, '0, 5'h5, 32'h07000000, 1); // 0 + pos_small = pos_small
 end
