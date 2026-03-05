@@ -1,5 +1,5 @@
 //========================================================================
-// BlimpV9.v
+// BlimpV9.v 
 //========================================================================
 // A top-level implementation of the Blimp processor with support for
 // RV32IM and Floating Point
@@ -9,7 +9,7 @@
 
 `include "defs/UArch.v"
 `include "hw/fetch/fetch_unit_variants/FetchUnitL3.v"
-`include "hw/decode_issue/decode_issue_unit_variants/DecodeIssueUnitL5.v"
+`include "hw/decode_issue/decode_issue_unit_variants/DecodeIssueUnitL5_sp26.v"
 `include "hw/execute/ExQueue.v"
 `include "hw/execute/execute_units_l6/ALUL6.v"
 `include "hw/execute/execute_units_l7/IterativeMulDivRemL7.v"
@@ -34,6 +34,7 @@ module BlimpV9 #(
 ) (
   input logic clk,
   input logic rst,
+  input logic debug_stall,
 
   //----------------------------------------------------------------------
   // Instruction Memory
@@ -155,8 +156,15 @@ module BlimpV9 #(
                             OP_BGE_VEC  |
                             OP_BLTU_VEC |
                             OP_BGEU_VEC;
-  parameter p_f_subset = OP_FADD_VEC |
-                         OP_FSUB_VEC;
+  
+  parameter p_f_subset = OP_FADD_VEC     |
+                         OP_FSUB_VEC     |
+                         OP_FLW_VEC      |
+                         OP_FSW_VEC      |
+                         OP_FSGNJ_VEC    |
+                         OP_FCVT_W_S_VEC |
+                         OP_FMV_X_W_VEC  |
+                         OP_FMV_W_X_VEC;
 
   FetchUnitL3 #(
     .p_max_in_flight (8)
@@ -168,7 +176,7 @@ module BlimpV9 #(
     .*
   );
 
-  DecodeIssueUnitL5 #(
+  DecodeIssueUnitL5_sp26 #(
     .p_num_pipes     (p_num_pipes),
     .p_num_phys_regs (p_num_phys_regs),
     .p_pipe_subsets ({
@@ -176,7 +184,7 @@ module BlimpV9 #(
       p_m_subset,   // M-Extension
       p_mem_subset, // Memory
       p_ctrl_subset, // Control Flow
-      p_f_subset
+      p_f_subset // Floating Point
     })
   ) DIU (
     .F          (f__d_intf),

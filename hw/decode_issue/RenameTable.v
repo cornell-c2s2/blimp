@@ -12,7 +12,7 @@
 
 module RenameTable #(
   parameter p_num_phys_regs  = 36,
-
+  parameter p_is_fp_domain = 0,
   parameter p_phys_addr_bits = $clog2(p_num_phys_regs)
 ) (
   input  logic clk,
@@ -198,14 +198,14 @@ module RenameTable #(
   // Not pending on complete
   // ---------------------------------------------------------------------
 
-  assign complete_val  = complete.val;
+  assign complete_val  = complete.val & (complete.is_fp == p_is_fp_domain);
   assign complete_preg = complete.preg;
 
   // ---------------------------------------------------------------------
   // Free on commit
   // ---------------------------------------------------------------------
 
-  assign free_val   = commit.val;
+  assign free_val      = commit.val   & (commit.is_fp   == p_is_fp_domain);
   assign free_ppreg = commit.ppreg;
 
   // ---------------------------------------------------------------------

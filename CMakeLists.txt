@@ -69,7 +69,7 @@ set(FL_PROC_FILES
   fl/fl_vtrace.cpp
   fl/fl_peripherals.cpp
   fl/parse_elf.cpp
-
+  fl/fl_fp_helpers.cpp
   fl/peripherals/FLExit.cpp
   fl/peripherals/FLTerminal.cpp
 )

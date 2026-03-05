@@ -1,5 +1,5 @@
 //========================================================================
-// WritebackCommitUnitL2.v
+// WritebackCommitUnitL3.v
 //========================================================================
 // A writeback unit that reorders messages based on sequence number
 // (including physical register specifiers)
@@ -38,6 +38,7 @@ module WritebackCommitUnitL3 #(
   CommitNotif.pub   commit
 );
 
+
   localparam p_seq_num_bits   = complete.p_seq_num_bits;
   localparam p_phys_addr_bits = complete.p_phys_addr_bits;
 
@@ -54,6 +55,7 @@ module WritebackCommitUnitL3 #(
   logic [p_phys_addr_bits-1:0] Ex_ppreg   [p_num_pipes-1:0];
   logic                        Ex_val     [p_num_pipes-1:0];
   logic                        Ex_rdy     [p_num_pipes-1:0];
+  logic                        Ex_is_fp   [p_num_pipes-1:0];
 
   genvar i;
   generate
@@ -67,6 +69,7 @@ module WritebackCommitUnitL3 #(
       assign Ex_ppreg[i]   = Ex[i].ppreg;
       assign Ex_val[i]     = Ex[i].val;
       assign Ex[i].rdy     = Ex_rdy[i];
+      assign Ex_is_fp[i]   = Ex[i].is_fp;
     end
   endgenerate
 
@@ -97,6 +100,8 @@ module WritebackCommitUnitL3 #(
   logic [p_phys_addr_bits-1:0] Ex_preg_masked    [p_num_pipes-1:0];
   logic [p_phys_addr_bits-1:0] Ex_ppreg_masked   [p_num_pipes-1:0];
   logic                        Ex_val_masked     [p_num_pipes-1:0];
+  logic                        Ex_is_fp_masked   [p_num_pipes-1:0];
+
 
   generate
     for( i = 0; i < p_num_pipes; i = i + 1 ) begin: MASK
@@ -108,6 +113,7 @@ module WritebackCommitUnitL3 #(
       assign Ex_preg_masked[i]    = Ex_preg[i]    & {p_phys_addr_bits{Ex_gnt[i]}};
       assign Ex_ppreg_masked[i]   = Ex_ppreg[i]   & {p_phys_addr_bits{Ex_gnt[i]}};
       assign Ex_val_masked[i]     = Ex_val[i]     & Ex_gnt[i];
+      assign Ex_is_fp_masked[i] = (Ex_gnt[i] & Ex_val[i]) ? Ex_is_fp[i] : 1'b0;
     end
   endgenerate
 
@@ -119,6 +125,7 @@ module WritebackCommitUnitL3 #(
   logic [p_phys_addr_bits-1:0] Ex_preg_sel;
   logic [p_phys_addr_bits-1:0] Ex_ppreg_sel;
   logic                        Ex_val_sel;
+  logic                        Ex_is_fp_sel;
 
   assign Ex_pc_sel      = Ex_pc_masked.or();
   assign Ex_seq_num_sel = Ex_seq_num_masked.or();
@@ -128,6 +135,7 @@ module WritebackCommitUnitL3 #(
   assign Ex_preg_sel    = Ex_preg_masked.or();
   assign Ex_ppreg_sel   = Ex_ppreg_masked.or();
   assign Ex_val_sel     = Ex_val_masked.or();
+  assign Ex_is_fp_sel   = Ex_is_fp_masked.or();
 
   // No backpressure - always ready
   generate
@@ -148,6 +156,7 @@ module WritebackCommitUnitL3 #(
     logic                 [31:0] wdata;
     logic                        wen;
     logic [p_phys_addr_bits-1:0] ppreg;
+    logic                        is_fp;   // <-- ADD (needed so ROB gets aligned is_fp)
   } X_input;
 
   X_input X_reg;
@@ -162,7 +171,8 @@ module WritebackCommitUnitL3 #(
         waddr: 'x, 
         wdata: 'x, 
         wen: 1'b0,
-        ppreg: 'x
+        ppreg: 'x,
+        is_fp: 1'b0
       };
     else
       X_reg <= X_reg_next;
@@ -177,7 +187,8 @@ module WritebackCommitUnitL3 #(
         waddr:   Ex_waddr_sel,
         wdata:   Ex_wdata_sel,
         wen:     Ex_wen_sel,
-        ppreg:   Ex_ppreg_sel
+        ppreg:   Ex_ppreg_sel,
+        is_fp:   Ex_is_fp_sel
       };
     else
       X_reg_next = '{ 
@@ -187,7 +198,8 @@ module WritebackCommitUnitL3 #(
         waddr: 'x, 
         wdata: 'x, 
         wen: 1'b0,
-        ppreg: 'x
+        ppreg: 'x,
+        is_fp: 1'b0
       };
   end
 
@@ -197,6 +209,7 @@ module WritebackCommitUnitL3 #(
   assign complete.wdata   = Ex_wdata_sel;
   assign complete.wen     = ( Ex_waddr_sel == '0 ) ? 0 : Ex_wen_sel;
   assign complete.preg    = Ex_preg_sel;
+  assign complete.is_fp   = Ex_is_fp_sel;
 
   //----------------------------------------------------------------------
   // ROB
@@ -208,6 +221,7 @@ module WritebackCommitUnitL3 #(
     logic                 [31:0] wdata;
     logic                        wen;
     logic [p_phys_addr_bits-1:0] ppreg;
+    logic                        is_fp;
   } t_rob_msg;
 
   t_rob_msg rob_input, rob_output;
@@ -217,6 +231,7 @@ module WritebackCommitUnitL3 #(
   assign rob_input.wdata   = X_reg.wdata;
   assign rob_input.wen     = ( X_reg.waddr == '0 ) ? 0 : X_reg.wen;
   assign rob_input.ppreg   = X_reg.ppreg;
+  assign rob_input.is_fp   = X_reg.is_fp; 
 
   localparam p_rob_depth = 2 ** p_seq_num_bits;
 
@@ -224,6 +239,9 @@ module WritebackCommitUnitL3 #(
     .p_depth    (p_rob_depth),
     .p_msg_bits ($bits(t_rob_msg))
   ) rob (
+    .clk     (clk),
+    .rst     (rst),
+
     .ins_idx (X_reg.seq_num),
     .ins_msg (rob_input),
     .ins_en  (X_reg.val),
@@ -231,8 +249,7 @@ module WritebackCommitUnitL3 #(
     .deq_idx (commit.seq_num),
     .deq_msg (rob_output),
     .deq_en  (commit.val),
-    .deq_rdy (commit.val),
-    .*
+    .deq_rdy (commit.val)
   );
 
   assign commit.pc    = rob_output.pc;
@@ -240,6 +257,7 @@ module WritebackCommitUnitL3 #(
   assign commit.wdata = rob_output.wdata;
   assign commit.wen   = rob_output.wen;
   assign commit.ppreg = rob_output.ppreg;
+  assign commit.is_fp = rob_output.is_fp;
 
   assign arb_commit.val     = commit.val;
   assign arb_commit.pc      = commit.pc;
@@ -248,6 +266,7 @@ module WritebackCommitUnitL3 #(
   assign arb_commit.wdata   = commit.wdata;
   assign arb_commit.wen     = commit.wen;
   assign arb_commit.ppreg   = commit.ppreg;
+  assign arb_commit.is_fp   = commit.is_fp;
 
   //----------------------------------------------------------------------
   // Linetracing

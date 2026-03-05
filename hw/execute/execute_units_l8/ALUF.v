@@ -45,6 +45,7 @@ module ALUF (
     rv_uop                       uop;
     logic [p_phys_addr_bits-1:0] preg;
     logic [p_phys_addr_bits-1:0] ppreg;
+    logic                        is_fp;
   } D_input;
 
   D_input D_reg, D_reg_next;
@@ -71,7 +72,8 @@ module ALUF (
         waddr : D.waddr,
         uop   : D.uop,
         preg  : D.preg,
-        ppreg : D.ppreg
+        ppreg : D.ppreg,
+        is_fp  : D.is_fp
       };
     end
     else if ( W_xfer ) begin
@@ -85,7 +87,7 @@ module ALUF (
   // --------------------------------------------------------------------
   // Floating-point Add (IEEE-754 single)
   // --------------------------------------------------------------------
-  
+ 
   logic [31:0] op1, op2_raw, op2;
   assign op1     = D_reg.op1;
   assign op2_raw = D_reg.op2;
@@ -187,7 +189,7 @@ module ALUF (
     s_small          = 1'b0;
     overflow         = 1'b0;
     underflow        = 1'b0;
-    
+   
     // Initialize local variables
     adj_e1 = e1;
     adj_e2 = e2;
@@ -223,26 +225,26 @@ module ALUF (
     end
     else begin
       // Normal operation path
-      
+     
       // Adjust denormal exponents
       adj_e1 = (is_denorm1 || is_zero1) ? 8'd1 : e1;
       adj_e2 = (is_denorm2 || is_zero2) ? 8'd1 : e2;
-      
+     
       // Choose larger exponent/mantissa
       if (adj_e1 > adj_e2 || (adj_e1 == adj_e2 && a_sig >= b_sig)) begin
-          exp_big   = adj_e1; 
+          exp_big   = adj_e1;
           exp_small = adj_e2;
-          sig_big   = a_sig; 
+          sig_big   = a_sig;
           sig_small = b_sig;
-          s_big     = s1; 
+          s_big     = s1;
           s_small   = s2;
-      end 
+      end
       else begin
-          exp_big   = adj_e2; 
+          exp_big   = adj_e2;
           exp_small = adj_e1;
-          sig_big   = b_sig; 
+          sig_big   = b_sig;
           sig_small = a_sig;
-          s_big     = s2; 
+          s_big     = s2;
           s_small   = s1;
       end
 
@@ -282,7 +284,7 @@ module ALUF (
         // Shift left until bit[26] is 1 or sum_ext is zero
         temp_sig = sig_norm_ext;
         temp_exp = exp_norm;
-        
+       
         // Use a for loop for left normalization
         for (int i = 0; i < 27; i++) begin
           if ((temp_sig[26] == 1'b0) && (temp_sig != 28'b0)) begin
@@ -338,18 +340,73 @@ module ALUF (
     end
   end
 
+// --------------------------------------------------------------------
+  // Float to Int conversion (FCVT.W.S)
+  // --------------------------------------------------------------------
+  logic signed [31:0] int_result;
+ 
+  always_comb begin
+    // Extract sign, exponent, mantissa
+    logic        sign_fp;
+    logic [7:0]  exp_fp;
+    logic [31:0] mant_fp;  // 23-bit mantissa + implicit 1
+    logic signed [31:0] shifted_mant;
+    int shift_amt;
+
+    shifted_mant = 32'd0;
+   
+    sign_fp = op1[31];
+    exp_fp  = op1[30:23];
+    mant_fp = {8'b0, 1'b1, op1[22:0]};  // Add implicit leading 1
+   
+    // Calculate shift amount (exponent - bias - 23)
+    // Bias is 127, mantissa is 23 bits
+    shift_amt = int'(exp_fp) - 127 - 23;
+   
+    if (exp_fp == 8'h00) begin
+      // Zero or denormal
+      int_result = 32'd0;
+    end
+    else if (exp_fp == 8'hFF) begin
+      // NaN or Infinity -> saturate to max/min int
+      int_result = sign_fp ? 32'h80000000 : 32'h7FFFFFFF;
+    end
+    else if (shift_amt >= 8) begin
+      // Overflow -> saturate
+      int_result = sign_fp ? 32'h80000000 : 32'h7FFFFFFF;
+    end
+    else if (shift_amt < -23) begin
+      // Underflow to zero
+      int_result = 32'd0;
+    end
+    else begin
+      // Normal conversion
+      if (shift_amt >= 0)
+        shifted_mant = signed'(mant_fp) << shift_amt;
+      else
+        shifted_mant = signed'(mant_fp) >>> (-shift_amt);  // Arithmetic right shift
+       
+      int_result = sign_fp ? -shifted_mant : shifted_mant;
+    end
+  end
+
   // --------------------------------------------------------------------
   // Operation select
   // --------------------------------------------------------------------
-  
+ 
   rv_uop uop;
   assign uop = D_reg.uop;
+
 
   always_comb begin
     unique case ( uop )
       OP_FADD_S,
-      OP_FSUB_S : W.wdata = fp_result;
-      default   : W.wdata = 'x;
+      OP_FSUB_S  : W.wdata = fp_result;
+      OP_FSGNJ_S : W.wdata = {op2[31], op1[30:0]};
+      OP_FCVT_W_S: W.wdata = int_result;
+      OP_FMV_X_W,
+      OP_FMV_W_X: W.wdata = op1;
+      default    : W.wdata = 'x;
     endcase
   end
 
@@ -359,11 +416,24 @@ module ALUF (
   assign D.rdy     = W.rdy | !D_reg.val;
   assign W.val     = D_reg.val;
   assign W.pc      = D_reg.pc;
-  assign W.wen     = 1'b1;
+ 
+  // W.wen checks is this an FP op that writes a register?
+  logic is_fp_wen;
+  always_comb begin
+    unique case ( D_reg.uop )
+      OP_FADD_S, OP_FSUB_S, OP_FSGNJ_S,
+      OP_FCVT_W_S, OP_FMV_X_W, OP_FMV_W_X : is_fp_wen = 1'b1;
+      default                             : is_fp_wen = 1'b0;
+    endcase
+  end
+ 
+  assign W.wen = is_fp_wen;
+ 
   assign W.seq_num = D_reg.seq_num;
   assign W.waddr   = D_reg.waddr;
   assign W.preg    = D_reg.preg;
   assign W.ppreg   = D_reg.ppreg;
+  assign W.is_fp   = D_reg.is_fp;
 
   // --------------------------------------------------------------------
   // Trace utilities

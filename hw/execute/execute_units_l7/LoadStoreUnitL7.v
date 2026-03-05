@@ -58,6 +58,7 @@ module LoadStoreUnitL7 #(
     logic [p_phys_addr_bits-1:0] ppreg;
     logic                 [31:0] mem_data;
     rv_uop                       uop;
+    logic                        is_fp;
   } D_input;
 
   typedef struct packed {
@@ -69,6 +70,7 @@ module LoadStoreUnitL7 #(
     logic [p_phys_addr_bits-1:0] ppreg;
     rv_uop                       uop;
     logic                  [1:0] offset;
+    logic                        is_fp;
   } stage2_msg;
   
   //----------------------------------------------------------------------
@@ -101,6 +103,7 @@ module LoadStoreUnitL7 #(
         preg:     'x,
         ppreg:    'x,
         mem_data: 'x,
+        is_fp:    1'b0,
         uop:      'x
       };
     else
@@ -121,6 +124,7 @@ module LoadStoreUnitL7 #(
         preg:     D.preg,
         ppreg:    D.ppreg,
         mem_data: D.op3.mem_data,
+        is_fp:    D.is_fp,
         uop:      D.uop
       };
     else if ( stage2_push )
@@ -134,6 +138,7 @@ module LoadStoreUnitL7 #(
         preg:     'x,
         ppreg:    'x,
         mem_data: 'x,
+        is_fp:    1'b0,
         uop:      'x
       };
     else
@@ -166,6 +171,8 @@ module LoadStoreUnitL7 #(
       OP_SB:   mem.req_msg.op = MEM_MSG_WRITE;
       OP_SH:   mem.req_msg.op = MEM_MSG_WRITE;
       OP_SW:   mem.req_msg.op = MEM_MSG_WRITE;
+      OP_FLW: mem.req_msg.op = MEM_MSG_READ;
+      OP_FSW: mem.req_msg.op = MEM_MSG_WRITE;
       default: mem.req_msg.op = MEM_MSG_READ;
     endcase
   end
@@ -182,6 +189,8 @@ module LoadStoreUnitL7 #(
       OP_SB:   base_strb = 4'b0001;
       OP_SH:   base_strb = 4'b0011;
       OP_SW:   base_strb = 4'b1111;
+      OP_FLW: base_strb = 4'b1111;
+      OP_FSW: base_strb = 4'b1111;
       default: base_strb = 'x;
     endcase
   end
@@ -217,6 +226,7 @@ module LoadStoreUnitL7 #(
   assign stage1_output.offset  = stage1_addr_offset;
   assign stage1_output.preg    = D_reg.preg;
   assign stage1_output.ppreg   = D_reg.ppreg;
+  assign stage1_output.is_fp   = D_reg.is_fp;
 
   assign stage2_val = D_reg.val & mem.req_rdy;
   assign D.rdy      = (stage2_rdy & mem.req_rdy) | (!D_reg.val);
@@ -255,7 +265,8 @@ module LoadStoreUnitL7 #(
         preg:    'x,
         ppreg:   'x,
         uop:     'x,
-        offset:  'x
+        offset:  'x,
+        is_fp:   1'b0
       };
     else
       stage2_reg <= stage2_reg_next;
@@ -275,7 +286,8 @@ module LoadStoreUnitL7 #(
         preg:    'x,
         ppreg:   'x,
         uop:     'x,
-        offset:  'x
+        offset:  'x,
+        is_fp:   1'b0
       };
     else
       stage2_reg_next = stage2_reg;
@@ -306,6 +318,8 @@ module LoadStoreUnitL7 #(
       OP_SB:   sext_data = 'x;
       OP_SH:   sext_data = 'x;
       OP_SW:   sext_data = 'x;
+      OP_FLW: sext_data = base_data;
+      OP_FSW: sext_data = 'x;
       default: sext_data = 'x;
     endcase
   end
@@ -330,6 +344,7 @@ module LoadStoreUnitL7 #(
   assign W.seq_num          = stage2_reg.seq_num;
   assign W.preg             = stage2_reg.preg;
   assign W.ppreg            = stage2_reg.ppreg;
+  assign W.is_fp            = stage2_reg.is_fp;
 
   always_comb begin
     case( stage2_reg.uop )
@@ -341,6 +356,8 @@ module LoadStoreUnitL7 #(
       OP_SB:   W.wen = 1'b0;
       OP_SH:   W.wen = 1'b0;
       OP_SW:   W.wen = 1'b0;
+      OP_FLW: W.wen = 1'b1;
+      OP_FSW: W.wen = 1'b0;
       default: W.wen = 1'bx;
     endcase
   end
