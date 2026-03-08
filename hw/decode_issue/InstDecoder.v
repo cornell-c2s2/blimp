@@ -99,6 +99,7 @@ module InstDecoder (
         `RVI_INST_ADD:    cs( y, OP_ADD,    j_n,    rs1,   rs2,   rd,   y,  'x,     op2_rf,  op3_x   );
         `RVI_INST_FADD_S: cs( y, OP_FADD_S, j_n,    rs1,   rs2,   rd,   y,  'x,     op2_rf,  op3_x   );
         `RVI_INST_FSUB_S: cs( y, OP_FSUB_S, j_n,    rs1,   rs2,   rd,   y,  'x,     op2_rf,  op3_x   );
+        `RVI_INST_FMUL_S: cs( y, OP_FMUL_S, j_n,    rs1,   rs2,   rd,   y,  'x,     op2_rf,  op3_x   );
         `RVI_INST_SUB:    cs( y, OP_SUB,    j_n,    rs1,   rs2,   rd,   y,  'x,     op2_rf,  op3_x   );
         `RVI_INST_AND:    cs( y, OP_AND,    j_n,    rs1,   rs2,   rd,   y,  'x,     op2_rf,  op3_x   );
         `RVI_INST_OR:     cs( y, OP_OR,     j_n,    rs1,   rs2,   rd,   y,  'x,     op2_rf,  op3_x   );
