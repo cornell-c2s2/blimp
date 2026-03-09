@@ -101,7 +101,7 @@ module LoadStoreUnitL7 #(
         preg:     'x,
         ppreg:    'x,
         mem_data: 'x,
-        uop:      'x
+        uop:      rv_uop'('x)
       };
     else
       D_reg <= D_reg_next;
@@ -134,7 +134,7 @@ module LoadStoreUnitL7 #(
         preg:     'x,
         ppreg:    'x,
         mem_data: 'x,
-        uop:      'x
+        uop:      rv_uop'('x)
       };
     else
       D_reg_next = D_reg;

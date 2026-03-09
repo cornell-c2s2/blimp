@@ -51,7 +51,7 @@ module FetchUnitL3
   // Local Parameters
   // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-  localparam p_rst_addr     = 32'h200;
+  localparam p_rst_addr     = 32'h000;
   localparam p_seq_num_bits = D.p_seq_num_bits;
   
   localparam p_flight_bits   = $clog2(p_max_in_flight) + 1;
