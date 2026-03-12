@@ -147,11 +147,13 @@ module DecodeIssueUnitL5_sp26 #(
   is_fmv_x_w || is_fmv_w_x;
   
   // Which register file supplies each architectural operand
-  assign need_fp_rs1  = is_fp_alu || is_fsgnj || is_fmv_x_w;  // FP ALU, FSGNJ, FMV.X.W read FP rs1
-  assign need_fp_rs2  = is_fp_alu || is_fsgnj || is_fsw;      // FP ALU, FSGNJ read FP rs2; FSW stores FP rs2
+  assign need_fp_rs1  = is_fp_alu || is_fsgnj || is_fmv_x_w ||
+                      (decoder_uop == OP_FCVT_W_S);  
 
-  assign need_int_rs1 = !(is_fp_alu || is_fsgnj || is_fmv_x_w);  // Everything else uses INT rs1
-  assign need_int_rs2 = !(is_fp_alu || is_fsgnj || is_fsw || is_fmv_x_w || is_fmv_w_x);  // Most INT ops use INT rs2
+  assign need_fp_rs2  = is_fp_alu || is_fsgnj || is_fsw; 
+
+  assign need_int_rs1 = !(need_fp_rs1); 
+  assign need_int_rs2 = !(is_fp_alu || is_fsgnj || is_fsw || is_fmv_x_w || is_fmv_w_x);
 
   // FP destination register for: FP ALU, FSGNJ, FLW, FMV.W.X
   assign fp_writes_rd = is_fp_alu || is_fsgnj || is_flw || is_fmv_w_x;
@@ -401,8 +403,7 @@ module DecodeIssueUnitL5_sp26 #(
       assign Ex[k].seq_num      = F_reg.seq_num;
       assign Ex[k].preg         = final_alloc_preg;
       assign Ex[k].ppreg        = final_alloc_ppreg;
-      // Added: mark domain so later stages can route writeback/commit
-      assign Ex[k].is_fp        = inst_is_fp;
+      assign Ex[k].is_fp        = fp_writes_rd;
 
       always_comb begin
         if( decoder_op3_sel ) // Branch - need immediate

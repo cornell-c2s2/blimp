@@ -207,7 +207,8 @@ module WritebackCommitUnitL3 #(
   assign complete.seq_num = Ex_seq_num_sel;
   assign complete.waddr   = Ex_waddr_sel;
   assign complete.wdata   = Ex_wdata_sel;
-  assign complete.wen     = ( Ex_waddr_sel == '0 ) ? 0 : Ex_wen_sel;
+  assign complete.wen =
+    Ex_wen_sel & ( Ex_is_fp_sel ? 1'b1 : ( Ex_waddr_sel != '0 ) );
   assign complete.preg    = Ex_preg_sel;
   assign complete.is_fp   = Ex_is_fp_sel;
 
@@ -229,7 +230,8 @@ module WritebackCommitUnitL3 #(
   assign rob_input.pc      = X_reg.pc;
   assign rob_input.waddr   = X_reg.waddr;
   assign rob_input.wdata   = X_reg.wdata;
-  assign rob_input.wen     = ( X_reg.waddr == '0 ) ? 0 : X_reg.wen;
+  assign rob_input.wen =
+    X_reg.wen & ( X_reg.is_fp ? 1'b1 : ( X_reg.waddr != '0 ) );
   assign rob_input.ppreg   = X_reg.ppreg;
   assign rob_input.is_fp   = X_reg.is_fp; 
 
