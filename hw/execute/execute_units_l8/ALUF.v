@@ -12,25 +12,32 @@
 // Author: Sumaia Jewena
 //========================================================================
 
+
 `ifndef HW_EXECUTE_EXECUTE_VARIANTS_L1_ALUF_V
 `define HW_EXECUTE_EXECUTE_VARIANTS_L1_ALUF_V
+
 
 `include "defs/UArch.v"
 `include "intf/D__XIntf.v"
 `include "intf/X__WIntf.v"
 
+
 import UArch::*;
+
 
 module ALUF (
   input  logic clk,
   input  logic rst,
 
+
   D__XIntf.X_intf D,
   X__WIntf.X_intf W
 );
 
+
   localparam p_seq_num_bits   = D.p_seq_num_bits;
   localparam p_phys_addr_bits = D.p_phys_addr_bits;
+
 
   // --------------------------------------------------------------------
   // Pipeline register for D inputs
@@ -48,8 +55,10 @@ module ALUF (
     logic                        is_fp;
   } D_input;
 
+
   D_input D_reg, D_reg_next;
   logic   D_xfer, W_xfer;
+
 
   always_ff @(posedge clk) begin
     if ( rst )
@@ -58,9 +67,11 @@ module ALUF (
       D_reg <= D_reg_next;
   end
 
+
   always_comb begin
     D_xfer = D.val & D.rdy;
     W_xfer = W.val & W.rdy;
+
 
     if ( D_xfer ) begin
       D_reg_next = '{
@@ -84,6 +95,7 @@ module ALUF (
     end
   end
 
+
   // --------------------------------------------------------------------
   // Floating-point Add/Sub (IEEE-754 single)
   // --------------------------------------------------------------------
@@ -92,7 +104,8 @@ module ALUF (
   assign op1     = D_reg.op1;
   assign op2_raw = D_reg.op2;
 
-  // If FSUB, flip the sign-bit of operand 2
+
+  // If FSUB, flip the sign-bit of operand 2 → op2 = op2 ^ 0x80000000
   always_comb begin
     if ( D_reg.uop == OP_FSUB_S )
       op2 = {~op2_raw[31], op2_raw[30:0]};
@@ -100,18 +113,22 @@ module ALUF (
       op2 = op2_raw;
   end
 
+
   // Field extracts
   logic        s1, s2;
   logic [7:0]  e1, e2;
   logic [22:0] m1, m2;
 
+
   assign s1 = op1[31];
   assign e1 = op1[30:23];
   assign m1 = op1[22:0];
 
+
   assign s2 = op2[31];
   assign e2 = op2[30:23];
   assign m2 = op2[22:0];
+
 
   // --------------------------------------------------------------------
   // Special case detection
@@ -120,6 +137,7 @@ module ALUF (
   logic is_inf1,  is_inf2;
   logic is_nan1,  is_nan2;
   logic is_denorm1, is_denorm2;
+
 
   assign is_zero1   = (e1 == 8'b0)  && (m1 == 23'b0);
   assign is_zero2   = (e2 == 8'b0)  && (m2 == 23'b0);
@@ -222,26 +240,28 @@ module ALUF (
       fp_result = op1; // return a
     end
     else begin
+      // Normal operation path
+     
       // Adjust denormal exponents
       adj_e1 = (is_denorm1 || is_zero1) ? 8'd1 : e1;
       adj_e2 = (is_denorm2 || is_zero2) ? 8'd1 : e2;
-
+     
       // Choose larger exponent/mantissa
-      if ( adj_e1 > adj_e2 || (adj_e1 == adj_e2 && a_sig >= b_sig) ) begin
-        exp_big   = adj_e1;
-        exp_small = adj_e2;
-        sig_big   = a_sig;
-        sig_small = b_sig;
-        s_big     = s1;
-        s_small   = s2;
+      if (adj_e1 > adj_e2 || (adj_e1 == adj_e2 && a_sig >= b_sig)) begin
+          exp_big   = adj_e1;
+          exp_small = adj_e2;
+          sig_big   = a_sig;
+          sig_small = b_sig;
+          s_big     = s1;
+          s_small   = s2;
       end
       else begin
-        exp_big   = adj_e2;
-        exp_small = adj_e1;
-        sig_big   = b_sig;
-        sig_small = a_sig;
-        s_big     = s2;
-        s_small   = s1;
+          exp_big   = adj_e2;
+          exp_small = adj_e1;
+          sig_big   = b_sig;
+          sig_small = a_sig;
+          s_big     = s2;
+          s_small   = s1;
       end
 
       result_sign = s_big;
@@ -262,8 +282,16 @@ module ALUF (
       // Add/Subtract based on signs
       if ( s_big == s_small )
         sum_ext = {1'b0, sig_big} + {1'b0, sig_small_aln};
-      else
-        sum_ext = {1'b0, sig_big} - {1'b0, sig_small_aln};
+      else begin
+        if (sticky_align) begin
+          sum_ext = {1'b0, sig_big} - {1'b0, sig_small_aln} - 28'd1;
+          sticky_align = 1'b1;
+        end
+        else begin
+          sum_ext = {1'b0, sig_big} - {1'b0, sig_small_aln};
+          sticky_align = 1'b0;
+        end
+      end
 
       result_sign  = s_big;
       exp_norm     = exp_big;
@@ -278,11 +306,19 @@ module ALUF (
       else begin
         temp_sig = sig_norm_ext;
         temp_exp = exp_norm;
-
-        for ( int i = 0; i < 27; i++ ) begin
-          if ( (temp_sig[26] == 1'b0) && (temp_sig != 28'b0) ) begin
-            temp_sig = temp_sig << 1;
-            temp_exp = temp_exp - 8'd1;
+       
+        // Use a for loop for left normalization
+        for (int i = 0; i < 28; i++) begin
+          if ((temp_sig[26] == 1'b0) && (temp_sig != 28'b0)) begin
+           
+            if (temp_exp > 8'd1) begin
+              sticky_align = sticky_align | temp_sig[0];
+              temp_sig = temp_sig << 1;
+              temp_exp = temp_exp - 8'd1;
+            end
+            else begin
+              temp_exp = 8'd0;
+            end
           end
         end
 
@@ -301,6 +337,8 @@ module ALUF (
       mant_pre = sig_norm_ext[26:3];
       mant_sum = {1'b0, mant_pre} + {{24{1'b0}}, inc};
 
+
+      // Handle possible carry-out from rounding (re-normalize)
       if ( mant_sum[24] ) begin
         mant_post  = mant_sum[24:1];
         result_exp = exp_norm + 8'd1;
