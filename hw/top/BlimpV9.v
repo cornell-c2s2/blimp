@@ -1,5 +1,5 @@
 //========================================================================
-// BlimpV9.v
+// BlimpV9.v 
 //========================================================================
 // A top-level implementation of the Blimp processor with support for
 // RV32IM and Floating Point
@@ -9,13 +9,14 @@
 
 `include "defs/UArch.v"
 `include "hw/fetch/fetch_unit_variants/FetchUnitL3.v"
-`include "hw/decode_issue/decode_issue_unit_variants/DecodeIssueUnitL5.v"
+`include "hw/decode_issue/decode_issue_unit_variants/DecodeIssueUnitL5_sp26.v"
 `include "hw/execute/ExQueue.v"
 `include "hw/execute/execute_units_l6/ALUL6.v"
 `include "hw/execute/execute_units_l7/IterativeMulDivRemL7.v"
 `include "hw/execute/execute_units_l7/LoadStoreUnitL7.v"
 `include "hw/execute/execute_units_l6/ControlFlowUnitL6.v"
 `include "hw/execute/execute_units_l8/ALUF.v"
+`include "hw/execute/execute_units_l8/FPInstUnit.v"
 `include "hw/squash/SquashUnitL1.v"
 `include "hw/writeback_commit/writeback_commit_unit_variants/WritebackCommitUnitL3.v"
 `include "intf/MemIntf.v"
@@ -34,6 +35,7 @@ module BlimpV9 #(
 ) (
   input logic clk,
   input logic rst,
+  input logic debug_stall,
 
   //----------------------------------------------------------------------
   // Instruction Memory
@@ -70,6 +72,17 @@ module BlimpV9 #(
     .p_phys_addr_bits (p_phys_addr_bits)
   ) d__x_intfs[p_num_pipes]();
 
+  // Internal FP subunit D-interfaces
+  D__XIntf #(
+    .p_seq_num_bits   (p_seq_num_bits),
+    .p_phys_addr_bits (p_phys_addr_bits)
+  ) fp_addsub_d_intf();
+
+  D__XIntf #(
+    .p_seq_num_bits   (p_seq_num_bits),
+    .p_phys_addr_bits (p_phys_addr_bits)
+  ) fp_inst_d_intf();
+
   X__WIntf #(
     .p_seq_num_bits   (p_seq_num_bits),
     .p_phys_addr_bits (p_phys_addr_bits)
@@ -79,6 +92,16 @@ module BlimpV9 #(
     .p_seq_num_bits   (p_seq_num_bits),
     .p_phys_addr_bits (p_phys_addr_bits)
   ) buffer_intf();
+
+  X__WIntf #(
+    .p_seq_num_bits   (p_seq_num_bits),
+    .p_phys_addr_bits (p_phys_addr_bits)
+  ) buffer_fp_addsub_intf();
+
+  X__WIntf #(
+    .p_seq_num_bits   (p_seq_num_bits),
+    .p_phys_addr_bits (p_phys_addr_bits)
+  ) buffer_fp_inst_intf();
 
   X__WIntf #(
     .p_seq_num_bits   (p_seq_num_bits),
@@ -145,7 +168,9 @@ module BlimpV9 #(
                            OP_LHU_VEC |
                            OP_SB_VEC  |
                            OP_SH_VEC  |
-                           OP_SW_VEC;
+                           OP_SW_VEC  |
+                           OP_FLW_VEC |
+                           OP_FSW_VEC;
 
   parameter p_ctrl_subset = OP_JAL_VEC  |
                             OP_JALR_VEC |
@@ -155,8 +180,13 @@ module BlimpV9 #(
                             OP_BGE_VEC  |
                             OP_BLTU_VEC |
                             OP_BGEU_VEC;
-  parameter p_f_subset = OP_FADD_VEC |
-                         OP_FSUB_VEC;
+  
+  parameter p_f_subset = OP_FADD_VEC     |
+                         OP_FSUB_VEC     |
+                         OP_FSGNJ_VEC    |
+                         OP_FCVT_W_S_VEC |
+                         OP_FMV_X_W_VEC  |
+                         OP_FMV_W_X_VEC;
 
   FetchUnitL3 #(
     .p_max_in_flight (8)
@@ -168,15 +198,15 @@ module BlimpV9 #(
     .*
   );
 
-  DecodeIssueUnitL5 #(
+  DecodeIssueUnitL5_sp26 #(
     .p_num_pipes     (p_num_pipes),
     .p_num_phys_regs (p_num_phys_regs),
     .p_pipe_subsets ({
-      p_alu_subset, // ALU
-      p_m_subset,   // M-Extension
-      p_mem_subset, // Memory
+      p_alu_subset,  // ALU
+      p_m_subset,    // M-Extension
+      p_mem_subset,  // Memory
       p_ctrl_subset, // Control Flow
-      p_f_subset
+      p_f_subset     // Floating Point
     })
   ) DIU (
     .F          (f__d_intf),
@@ -222,11 +252,144 @@ module BlimpV9 #(
     .*
   );
 
-  ALUF FP_XU (
-    .D (d__x_intfs[4]),
-    .W (buffer_fp_intf),
+  // --------------------------------------------------------------------
+  // Floating-point execute path (pipe 8)
+  // --------------------------------------------------------------------
+
+   // --------------------------------------------------------------------
+  // Floating-point execute path (pipe 8)
+  // --------------------------------------------------------------------
+
+  logic fp_sel_addsub, fp_sel_inst;
+
+  always_comb begin
+    fp_sel_addsub = 1'b0;
+    fp_sel_inst   = 1'b0;
+
+    unique case ( d__x_intfs[4].uop )
+      OP_FADD_S,
+      OP_FSUB_S: begin
+        fp_sel_addsub = 1'b1;
+      end
+
+      OP_FSGNJ_S,
+      OP_FCVT_W_S,
+      OP_FMV_X_W,
+      OP_FMV_W_X: begin
+        fp_sel_inst = 1'b1;
+      end
+
+      default: begin
+        fp_sel_addsub = 1'b0;
+        fp_sel_inst   = 1'b0;
+      end
+    endcase
+  end
+
+  // Route common fields to both internal FP D interfaces
+  assign fp_addsub_d_intf.pc      = d__x_intfs[4].pc;
+  assign fp_addsub_d_intf.op1     = d__x_intfs[4].op1;
+  assign fp_addsub_d_intf.op2     = d__x_intfs[4].op2;
+  assign fp_addsub_d_intf.waddr   = d__x_intfs[4].waddr;
+  assign fp_addsub_d_intf.uop     = d__x_intfs[4].uop;
+  assign fp_addsub_d_intf.seq_num = d__x_intfs[4].seq_num;
+  assign fp_addsub_d_intf.preg    = d__x_intfs[4].preg;
+  assign fp_addsub_d_intf.ppreg   = d__x_intfs[4].ppreg;
+  assign fp_addsub_d_intf.is_fp   = d__x_intfs[4].is_fp;
+  assign fp_addsub_d_intf.op3     = d__x_intfs[4].op3;
+  assign fp_addsub_d_intf.val     = d__x_intfs[4].val & fp_sel_addsub;
+
+  assign fp_inst_d_intf.pc      = d__x_intfs[4].pc;
+  assign fp_inst_d_intf.op1     = d__x_intfs[4].op1;
+  assign fp_inst_d_intf.op2     = d__x_intfs[4].op2;
+  assign fp_inst_d_intf.waddr   = d__x_intfs[4].waddr;
+  assign fp_inst_d_intf.uop     = d__x_intfs[4].uop;
+  assign fp_inst_d_intf.seq_num = d__x_intfs[4].seq_num;
+  assign fp_inst_d_intf.preg    = d__x_intfs[4].preg;
+  assign fp_inst_d_intf.ppreg   = d__x_intfs[4].ppreg;
+  assign fp_inst_d_intf.is_fp   = d__x_intfs[4].is_fp;
+  assign fp_inst_d_intf.op3     = d__x_intfs[4].op3;
+  assign fp_inst_d_intf.val     = d__x_intfs[4].val & fp_sel_inst;
+
+  // Only the selected subunit drives pipe-8 ready.
+  // Important: when pipe 8 is not carrying a valid instruction, do NOT block decode.
+  always_comb begin
+    d__x_intfs[4].rdy = 1'b1;
+
+    if ( d__x_intfs[4].val ) begin
+      if ( fp_sel_addsub )
+        d__x_intfs[4].rdy = fp_addsub_d_intf.rdy;
+      else if ( fp_sel_inst )
+        d__x_intfs[4].rdy = fp_inst_d_intf.rdy;
+      else
+        d__x_intfs[4].rdy = 1'b0;
+    end
+  end
+
+  ALUF FP_ADD_SUB_XU (
+    .D (fp_addsub_d_intf),
+    .W (buffer_fp_addsub_intf),
     .*
   );
+
+  FPInstUnit FP_INST_XU (
+    .D (fp_inst_d_intf),
+    .W (buffer_fp_inst_intf),
+    .*
+  );
+
+  // Output mux for FP results
+  assign buffer_fp_addsub_intf.rdy = buffer_fp_intf.rdy & buffer_fp_addsub_intf.val;
+  assign buffer_fp_inst_intf.rdy   = buffer_fp_intf.rdy & (~buffer_fp_addsub_intf.val) & buffer_fp_inst_intf.val;
+
+  always_comb begin
+    buffer_fp_intf.val     = 1'b0;
+    buffer_fp_intf.pc      = '0;
+    buffer_fp_intf.waddr   = '0;
+    buffer_fp_intf.wdata   = '0;
+    buffer_fp_intf.wen     = 1'b0;
+    buffer_fp_intf.seq_num = '0;
+    buffer_fp_intf.preg    = '0;
+    buffer_fp_intf.ppreg   = '0;
+    buffer_fp_intf.is_fp   = 1'b0;
+
+    if ( buffer_fp_addsub_intf.val ) begin
+      buffer_fp_intf.val     = buffer_fp_addsub_intf.val;
+      buffer_fp_intf.pc      = buffer_fp_addsub_intf.pc;
+      buffer_fp_intf.waddr   = buffer_fp_addsub_intf.waddr;
+      buffer_fp_intf.wdata   = buffer_fp_addsub_intf.wdata;
+      buffer_fp_intf.wen     = buffer_fp_addsub_intf.wen;
+      buffer_fp_intf.seq_num = buffer_fp_addsub_intf.seq_num;
+      buffer_fp_intf.preg    = buffer_fp_addsub_intf.preg;
+      buffer_fp_intf.ppreg   = buffer_fp_addsub_intf.ppreg;
+      buffer_fp_intf.is_fp   = buffer_fp_addsub_intf.is_fp;
+    end
+    else if ( buffer_fp_inst_intf.val ) begin
+      buffer_fp_intf.val     = buffer_fp_inst_intf.val;
+      buffer_fp_intf.pc      = buffer_fp_inst_intf.pc;
+      buffer_fp_intf.waddr   = buffer_fp_inst_intf.waddr;
+      buffer_fp_intf.wdata   = buffer_fp_inst_intf.wdata;
+      buffer_fp_intf.wen     = buffer_fp_inst_intf.wen;
+      buffer_fp_intf.seq_num = buffer_fp_inst_intf.seq_num;
+      buffer_fp_intf.preg    = buffer_fp_inst_intf.preg;
+      buffer_fp_intf.ppreg   = buffer_fp_inst_intf.ppreg;
+      buffer_fp_intf.is_fp   = buffer_fp_inst_intf.is_fp;
+    end
+  end
+
+  // Output mux for FP results
+  assign buffer_fp_addsub_intf.rdy = buffer_fp_intf.rdy & buffer_fp_addsub_intf.val;
+  assign buffer_fp_inst_intf.rdy   = buffer_fp_intf.rdy & ~buffer_fp_addsub_intf.val & buffer_fp_inst_intf.val;
+
+  assign buffer_fp_intf.val     = buffer_fp_addsub_intf.val | buffer_fp_inst_intf.val;
+  assign buffer_fp_intf.pc      = buffer_fp_addsub_intf.val ? buffer_fp_addsub_intf.pc      : buffer_fp_inst_intf.pc;
+  assign buffer_fp_intf.waddr   = buffer_fp_addsub_intf.val ? buffer_fp_addsub_intf.waddr   : buffer_fp_inst_intf.waddr;
+  assign buffer_fp_intf.wdata   = buffer_fp_addsub_intf.val ? buffer_fp_addsub_intf.wdata   : buffer_fp_inst_intf.wdata;
+  assign buffer_fp_intf.wen     = buffer_fp_addsub_intf.val ? buffer_fp_addsub_intf.wen     : buffer_fp_inst_intf.wen;
+  assign buffer_fp_intf.seq_num = buffer_fp_addsub_intf.val ? buffer_fp_addsub_intf.seq_num : buffer_fp_inst_intf.seq_num;
+  assign buffer_fp_intf.preg    = buffer_fp_addsub_intf.val ? buffer_fp_addsub_intf.preg    : buffer_fp_inst_intf.preg;
+  assign buffer_fp_intf.ppreg   = buffer_fp_addsub_intf.val ? buffer_fp_addsub_intf.ppreg   : buffer_fp_inst_intf.ppreg;
+  assign buffer_fp_intf.is_fp   = buffer_fp_addsub_intf.val ? buffer_fp_addsub_intf.is_fp   : buffer_fp_inst_intf.is_fp;
 
   ExQueue #(1) fp_buf (
     .in  (buffer_fp_intf),
@@ -271,7 +434,9 @@ module BlimpV9 #(
     trace = {trace, " | "};
     trace = {trace, CTRL_XU.trace( trace_level )};
     trace = {trace, " | "};
-    trace = {trace, FP_XU.trace( trace_level )};
+    trace = {trace, FP_ADD_SUB_XU.trace( trace_level )};
+    trace = {trace, "/"};
+    trace = {trace, FP_INST_XU.trace( trace_level )};
     trace = {trace, " | "};
     trace = {trace, WCU.trace( trace_level )};
   endfunction

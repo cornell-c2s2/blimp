@@ -174,6 +174,7 @@ module IterativeMulDivRemL7 (
     rv_uop                       uop;
     logic [p_phys_addr_bits-1:0] preg;
     logic [p_phys_addr_bits-1:0] ppreg;
+    logic                        is_fp;
   } D_input;
 
   typedef struct packed {
@@ -203,7 +204,8 @@ module IterativeMulDivRemL7 (
         waddr:   'x,
         uop:     'x,
         preg:    'x,
-        ppreg:   'x
+        ppreg:   'x,
+        is_fp:   1'b0
       };
     else
       D_reg <= D_reg_next;
@@ -221,7 +223,8 @@ module IterativeMulDivRemL7 (
         waddr:   D.waddr,
         uop:     D.uop,
         preg:    D.preg,
-        ppreg:   D.ppreg
+        ppreg:   D.ppreg,
+        is_fp:   D.is_fp
       };
     else if ( W_xfer )
       D_reg_next = '{ 
@@ -231,7 +234,8 @@ module IterativeMulDivRemL7 (
         waddr:   'x,
         uop:     'x,
         preg:    'x,
-        ppreg:   'x
+        ppreg:   'x,
+        is_fp:   1'b0
       };
     else
       D_reg_next = D_reg;
@@ -399,6 +403,7 @@ module IterativeMulDivRemL7 (
   assign W.preg    = D_reg.preg;
   assign W.ppreg   = D_reg.ppreg;
   assign W.wen     = 1'b1;
+  assign W.is_fp   = D_reg.is_fp;
 
   always_comb begin
     case( D_reg.uop )
