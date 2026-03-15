@@ -76,6 +76,7 @@ module InstRouterUnit #(
 
       if( in_subset(p_isa_subset, OP_FADD_VEC     ) ) val_uop |= ( uop == OP_FADD_S   );
       if( in_subset(p_isa_subset, OP_FSUB_VEC     ) ) val_uop |= ( uop == OP_FSUB_S   );
+      if( in_subset(p_isa_subset, OP_FMUL_VEC     ) ) val_uop |= ( uop == OP_FMUL_S   );
       if( in_subset(p_isa_subset, OP_FLW_VEC      ) ) val_uop |= ( uop == OP_FLW      );
       if( in_subset(p_isa_subset, OP_FSW_VEC      ) ) val_uop |= ( uop == OP_FSW      );
       if( in_subset(p_isa_subset, OP_FSGNJ_VEC    ) ) val_uop |= ( uop == OP_FSGNJ_S  );
