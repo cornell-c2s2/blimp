@@ -69,6 +69,7 @@ package UArch;
     // FP
     OP_FADD_S,
     OP_FSUB_S,
+    OP_FMUL_S,
     OP_FLW,
     OP_FSW,
     OP_FSGNJ_S,
@@ -126,6 +127,7 @@ package UArch;
   parameter OP_REMU_VEC   = num_ops'(1 << OP_REMU   );
   parameter OP_FADD_VEC   = num_ops'(1 << OP_FADD_S );
   parameter OP_FSUB_VEC   = num_ops'(1 << OP_FSUB_S );
+  parameter OP_FMUL_VEC   = num_ops'(1 << OP_FMUL_S );
   parameter OP_FLW_VEC    = num_ops'(1 << OP_FLW    );
   parameter OP_FSW_VEC    = num_ops'(1 << OP_FSW    );
   parameter OP_FSGNJ_VEC  = num_ops'(1 << OP_FSGNJ_S);
