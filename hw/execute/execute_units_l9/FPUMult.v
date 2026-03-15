@@ -349,6 +349,7 @@ module FPUMult #(
     rv_uop                       uop;
     logic [p_phys_addr_bits-1:0] preg;
     logic [p_phys_addr_bits-1:0] ppreg;
+    logic                        is_fp;
   } D_input;
 
   D_input D_reg;
@@ -380,7 +381,8 @@ module FPUMult #(
         waddr:   D.waddr,
         uop:     D.uop,
         preg:    D.preg,
-        ppreg:   D.ppreg
+        ppreg:   D.ppreg,
+        is_fp  : D.is_fp
       };
     else if ( W_xfer )
       D_reg_next = '0;
@@ -514,6 +516,7 @@ module FPUMult #(
   assign W.waddr   = D_reg.waddr;
   assign W.preg    = D_reg.preg;
   assign W.ppreg   = D_reg.ppreg;
+  assign W.is_fp   = D_reg.is_fp;
 
 `ifndef SYNTHESIS
   function int ceil_div_4( int val );

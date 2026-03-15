@@ -171,8 +171,8 @@ module LoadStoreUnitL7 #(
       OP_SB:   mem.req_msg.op = MEM_MSG_WRITE;
       OP_SH:   mem.req_msg.op = MEM_MSG_WRITE;
       OP_SW:   mem.req_msg.op = MEM_MSG_WRITE;
-      OP_FLW: mem.req_msg.op = MEM_MSG_READ;
-      OP_FSW: mem.req_msg.op = MEM_MSG_WRITE;
+      OP_FLW:  mem.req_msg.op = MEM_MSG_READ;
+      OP_FSW:  mem.req_msg.op = MEM_MSG_WRITE;
       default: mem.req_msg.op = MEM_MSG_READ;
     endcase
   end
@@ -189,8 +189,8 @@ module LoadStoreUnitL7 #(
       OP_SB:   base_strb = 4'b0001;
       OP_SH:   base_strb = 4'b0011;
       OP_SW:   base_strb = 4'b1111;
-      OP_FLW: base_strb = 4'b1111;
-      OP_FSW: base_strb = 4'b1111;
+      OP_FLW:  base_strb = 4'b1111;
+      OP_FSW:  base_strb = 4'b1111;
       default: base_strb = 'x;
     endcase
   end
