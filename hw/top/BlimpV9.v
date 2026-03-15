@@ -256,10 +256,6 @@ module BlimpV9 #(
   // Floating-point execute path (pipe 8)
   // --------------------------------------------------------------------
 
-   // --------------------------------------------------------------------
-  // Floating-point execute path (pipe 8)
-  // --------------------------------------------------------------------
-
   logic fp_sel_addsub, fp_sel_inst;
 
   always_comb begin
@@ -338,10 +334,11 @@ module BlimpV9 #(
     .*
   );
 
-  // Output mux for FP results
+  // Selected FP producer gets backpressure from the shared FP output buffer
   assign buffer_fp_addsub_intf.rdy = buffer_fp_intf.rdy & buffer_fp_addsub_intf.val;
   assign buffer_fp_inst_intf.rdy   = buffer_fp_intf.rdy & (~buffer_fp_addsub_intf.val) & buffer_fp_inst_intf.val;
 
+  // FP result mux
   always_comb begin
     buffer_fp_intf.val     = 1'b0;
     buffer_fp_intf.pc      = '0;
@@ -376,20 +373,6 @@ module BlimpV9 #(
       buffer_fp_intf.is_fp   = buffer_fp_inst_intf.is_fp;
     end
   end
-
-  // Output mux for FP results
-  assign buffer_fp_addsub_intf.rdy = buffer_fp_intf.rdy & buffer_fp_addsub_intf.val;
-  assign buffer_fp_inst_intf.rdy   = buffer_fp_intf.rdy & ~buffer_fp_addsub_intf.val & buffer_fp_inst_intf.val;
-
-  assign buffer_fp_intf.val     = buffer_fp_addsub_intf.val | buffer_fp_inst_intf.val;
-  assign buffer_fp_intf.pc      = buffer_fp_addsub_intf.val ? buffer_fp_addsub_intf.pc      : buffer_fp_inst_intf.pc;
-  assign buffer_fp_intf.waddr   = buffer_fp_addsub_intf.val ? buffer_fp_addsub_intf.waddr   : buffer_fp_inst_intf.waddr;
-  assign buffer_fp_intf.wdata   = buffer_fp_addsub_intf.val ? buffer_fp_addsub_intf.wdata   : buffer_fp_inst_intf.wdata;
-  assign buffer_fp_intf.wen     = buffer_fp_addsub_intf.val ? buffer_fp_addsub_intf.wen     : buffer_fp_inst_intf.wen;
-  assign buffer_fp_intf.seq_num = buffer_fp_addsub_intf.val ? buffer_fp_addsub_intf.seq_num : buffer_fp_inst_intf.seq_num;
-  assign buffer_fp_intf.preg    = buffer_fp_addsub_intf.val ? buffer_fp_addsub_intf.preg    : buffer_fp_inst_intf.preg;
-  assign buffer_fp_intf.ppreg   = buffer_fp_addsub_intf.val ? buffer_fp_addsub_intf.ppreg   : buffer_fp_inst_intf.ppreg;
-  assign buffer_fp_intf.is_fp   = buffer_fp_addsub_intf.val ? buffer_fp_addsub_intf.is_fp   : buffer_fp_inst_intf.is_fp;
 
   ExQueue #(1) fp_buf (
     .in  (buffer_fp_intf),
