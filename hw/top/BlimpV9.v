@@ -17,6 +17,7 @@
 `include "hw/execute/execute_units_l6/ControlFlowUnitL6.v"
 `include "hw/execute/execute_units_l8/ALUF.v"
 `include "hw/execute/execute_units_l8/FPInstUnit.v"
+`include "hw/execute/execute_units_l9/FPUMult.v"
 `include "hw/squash/SquashUnitL1.v"
 `include "hw/writeback_commit/writeback_commit_unit_variants/WritebackCommitUnitL3.v"
 `include "intf/MemIntf.v"
@@ -81,6 +82,11 @@ module BlimpV9 #(
   D__XIntf #(
     .p_seq_num_bits   (p_seq_num_bits),
     .p_phys_addr_bits (p_phys_addr_bits)
+  ) fp_mul_d_intf();
+
+  D__XIntf #(
+    .p_seq_num_bits   (p_seq_num_bits),
+    .p_phys_addr_bits (p_phys_addr_bits)
   ) fp_inst_d_intf();
 
   X__WIntf #(
@@ -97,6 +103,11 @@ module BlimpV9 #(
     .p_seq_num_bits   (p_seq_num_bits),
     .p_phys_addr_bits (p_phys_addr_bits)
   ) buffer_fp_addsub_intf();
+
+  X__WIntf #(
+    .p_seq_num_bits   (p_seq_num_bits),
+    .p_phys_addr_bits (p_phys_addr_bits)
+  ) buffer_fp_mul_intf();
 
   X__WIntf #(
     .p_seq_num_bits   (p_seq_num_bits),
@@ -183,6 +194,7 @@ module BlimpV9 #(
   
   parameter p_f_subset = OP_FADD_VEC     |
                          OP_FSUB_VEC     |
+                         OP_FMUL_VEC     |
                          OP_FSGNJ_VEC    |
                          OP_FCVT_W_S_VEC |
                          OP_FMV_X_W_VEC  |
@@ -256,16 +268,21 @@ module BlimpV9 #(
   // Floating-point execute path (pipe 8)
   // --------------------------------------------------------------------
 
-  logic fp_sel_addsub, fp_sel_inst;
+  logic fp_sel_addsub, fp_sel_mul, fp_sel_inst;
 
   always_comb begin
     fp_sel_addsub = 1'b0;
+    fp_sel_mul    = 1'b0;
     fp_sel_inst   = 1'b0;
 
     unique case ( d__x_intfs[4].uop )
       OP_FADD_S,
       OP_FSUB_S: begin
         fp_sel_addsub = 1'b1;
+      end
+
+      OP_FMUL_S: begin
+        fp_sel_mul = 1'b1;
       end
 
       OP_FSGNJ_S,
@@ -277,12 +294,13 @@ module BlimpV9 #(
 
       default: begin
         fp_sel_addsub = 1'b0;
+        fp_sel_mul    = 1'b0;
         fp_sel_inst   = 1'b0;
       end
     endcase
   end
 
-  // Route common fields to both internal FP D interfaces
+  // Route common fields to all internal FP D interfaces
   assign fp_addsub_d_intf.pc      = d__x_intfs[4].pc;
   assign fp_addsub_d_intf.op1     = d__x_intfs[4].op1;
   assign fp_addsub_d_intf.op2     = d__x_intfs[4].op2;
@@ -294,6 +312,18 @@ module BlimpV9 #(
   assign fp_addsub_d_intf.is_fp   = d__x_intfs[4].is_fp;
   assign fp_addsub_d_intf.op3     = d__x_intfs[4].op3;
   assign fp_addsub_d_intf.val     = d__x_intfs[4].val & fp_sel_addsub;
+
+  assign fp_mul_d_intf.pc      = d__x_intfs[4].pc;
+  assign fp_mul_d_intf.op1     = d__x_intfs[4].op1;
+  assign fp_mul_d_intf.op2     = d__x_intfs[4].op2;
+  assign fp_mul_d_intf.waddr   = d__x_intfs[4].waddr;
+  assign fp_mul_d_intf.uop     = d__x_intfs[4].uop;
+  assign fp_mul_d_intf.seq_num = d__x_intfs[4].seq_num;
+  assign fp_mul_d_intf.preg    = d__x_intfs[4].preg;
+  assign fp_mul_d_intf.ppreg   = d__x_intfs[4].ppreg;
+  assign fp_mul_d_intf.is_fp   = d__x_intfs[4].is_fp;
+  assign fp_mul_d_intf.op3     = d__x_intfs[4].op3;
+  assign fp_mul_d_intf.val     = d__x_intfs[4].val & fp_sel_mul;
 
   assign fp_inst_d_intf.pc      = d__x_intfs[4].pc;
   assign fp_inst_d_intf.op1     = d__x_intfs[4].op1;
@@ -315,6 +345,8 @@ module BlimpV9 #(
     if ( d__x_intfs[4].val ) begin
       if ( fp_sel_addsub )
         d__x_intfs[4].rdy = fp_addsub_d_intf.rdy;
+      else if ( fp_sel_mul )
+        d__x_intfs[4].rdy = fp_mul_d_intf.rdy;
       else if ( fp_sel_inst )
         d__x_intfs[4].rdy = fp_inst_d_intf.rdy;
       else
@@ -328,6 +360,12 @@ module BlimpV9 #(
     .*
   );
 
+  FPUMult FP_MUL_XU (
+    .D (fp_mul_d_intf),
+    .W (buffer_fp_mul_intf),
+    .*
+  );
+
   FPInstUnit FP_INST_XU (
     .D (fp_inst_d_intf),
     .W (buffer_fp_inst_intf),
@@ -336,7 +374,8 @@ module BlimpV9 #(
 
   // Selected FP producer gets backpressure from the shared FP output buffer
   assign buffer_fp_addsub_intf.rdy = buffer_fp_intf.rdy & buffer_fp_addsub_intf.val;
-  assign buffer_fp_inst_intf.rdy   = buffer_fp_intf.rdy & (~buffer_fp_addsub_intf.val) & buffer_fp_inst_intf.val;
+  assign buffer_fp_mul_intf.rdy    = buffer_fp_intf.rdy & (~buffer_fp_addsub_intf.val) & buffer_fp_mul_intf.val;
+  assign buffer_fp_inst_intf.rdy   = buffer_fp_intf.rdy & (~buffer_fp_addsub_intf.val) & (~buffer_fp_mul_intf.val) & buffer_fp_inst_intf.val;
 
   // FP result mux
   always_comb begin
@@ -360,6 +399,17 @@ module BlimpV9 #(
       buffer_fp_intf.preg    = buffer_fp_addsub_intf.preg;
       buffer_fp_intf.ppreg   = buffer_fp_addsub_intf.ppreg;
       buffer_fp_intf.is_fp   = buffer_fp_addsub_intf.is_fp;
+    end
+    else if ( buffer_fp_mul_intf.val ) begin
+      buffer_fp_intf.val     = buffer_fp_mul_intf.val;
+      buffer_fp_intf.pc      = buffer_fp_mul_intf.pc;
+      buffer_fp_intf.waddr   = buffer_fp_mul_intf.waddr;
+      buffer_fp_intf.wdata   = buffer_fp_mul_intf.wdata;
+      buffer_fp_intf.wen     = buffer_fp_mul_intf.wen;
+      buffer_fp_intf.seq_num = buffer_fp_mul_intf.seq_num;
+      buffer_fp_intf.preg    = buffer_fp_mul_intf.preg;
+      buffer_fp_intf.ppreg   = buffer_fp_mul_intf.ppreg;
+      buffer_fp_intf.is_fp   = buffer_fp_mul_intf.is_fp;
     end
     else if ( buffer_fp_inst_intf.val ) begin
       buffer_fp_intf.val     = buffer_fp_inst_intf.val;

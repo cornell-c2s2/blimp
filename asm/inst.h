@@ -102,6 +102,7 @@ enum inst_name_t {
   // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
   FADD_S,
   FSUB_S,
+  FMUL_S,
   FLW,
   FSW,
   FSGNJ_S,
@@ -214,6 +215,7 @@ const inst_spec_t inst_specs[] = {
     // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     { FADD_S,   "fadd.s   frd, frs1, frs2", 0x00000053, 0xFE00007F },
     { FSUB_S,   "fsub.s   frd, frs1, frs2", 0x08000053, 0xFE00007F },
+    { FMUL_S,   "fmul.s   frd, frs1, frs2", 0x10000053, 0xFE00007F },
 
     // flw: FP destination, INT base register
     { FLW,      "flw      frd, imm_i(rs1)", 0x00002007, 0x0000707F },

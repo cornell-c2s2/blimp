@@ -135,7 +135,7 @@ module DecodeIssueUnitL5_sp26 #(
   logic fp_writes_rd;
   logic inst_is_fp;
 
-  assign is_fp_alu   = (decoder_uop == OP_FADD_S) || (decoder_uop == OP_FSUB_S);
+  assign is_fp_alu   = (decoder_uop == OP_FADD_S) || (decoder_uop == OP_FSUB_S) || (decoder_uop == OP_FSUB_S);
   assign is_fsgnj    = (decoder_uop == OP_FSGNJ_S);
   assign is_flw      = (decoder_uop == OP_FLW);
   assign is_fsw      = (decoder_uop == OP_FSW);
