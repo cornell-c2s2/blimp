@@ -350,6 +350,202 @@ task test_case_csrrc_full_clear();
 endtask
 
 //----------------------------------------------------------------------
+// Helpers for CSR tests
+//----------------------------------------------------------------------
+
+function automatic logic [31:0] csr_model_read(
+  input logic [11:0] addr,
+  input logic  [4:0] exp_fflags,
+  input logic  [2:0] exp_frm
+);
+  begin
+    unique case (addr)
+      12'h001: csr_model_read = {27'b0, exp_fflags};
+      12'h002: csr_model_read = {29'b0, exp_frm};
+      12'h003: csr_model_read = {24'b0, exp_frm, exp_fflags};
+      default: csr_model_read = 32'h0;
+    endcase
+  end
+endfunction
+
+task automatic csr_model_apply(
+  inout logic  [4:0] exp_fflags,
+  inout logic  [2:0] exp_frm,
+  input rv_uop       uop,
+  input logic [11:0] addr,
+  input logic [31:0] op1
+);
+  begin
+    unique case (uop)
+      OP_CSRRW: begin
+        case (addr)
+          12'h001: exp_fflags = op1[4:0];
+          12'h002: exp_frm    = op1[2:0];
+          12'h003: begin
+            exp_fflags = op1[4:0];
+            exp_frm    = op1[7:5];
+          end
+          default: ;
+        endcase
+      end
+      OP_CSRRS: begin
+        case (addr)
+          12'h001: exp_fflags = exp_fflags | op1[4:0];
+          12'h002: exp_frm    = exp_frm    | op1[2:0];
+          12'h003: begin
+            exp_fflags = exp_fflags | op1[4:0];
+            exp_frm    = exp_frm    | op1[7:5];
+          end
+          default: ;
+        endcase
+      end
+      OP_CSRRC: begin
+        case (addr)
+          12'h001: exp_fflags = exp_fflags & ~op1[4:0];
+          12'h002: exp_frm    = exp_frm    & ~op1[2:0];
+          12'h003: begin
+            exp_fflags = exp_fflags & ~op1[4:0];
+            exp_frm    = exp_frm    & ~op1[7:5];
+          end
+          default: ;
+        endcase
+      end
+      default: ;
+    endcase
+  end
+endtask
+
+//----------------------------------------------------------------------
+// test_case_csr_randomized_mixed
+//----------------------------------------------------------------------
+
+task automatic test_case_csr_randomized_mixed();
+  localparam int CNumIters = 100;
+
+  logic               [31:0] rand_pc      [CNumIters];
+  logic [p_seq_num_bits-1:0] rand_seq_num [CNumIters];
+  logic               [31:0] rand_op1     [CNumIters];
+  logic               [11:0] rand_addr    [CNumIters];
+  logic                [4:0] rand_waddr   [CNumIters];
+  rv_uop                     rand_uop     [CNumIters];
+
+  logic               [31:0] exp_wdata    [CNumIters];
+  logic                      exp_wen      [CNumIters];
+
+  logic [4:0] exp_fflags;
+  logic [2:0] exp_frm;
+  logic [3:0] addr_sel;
+
+  t.test_case_begin( "test_case_csr_randomized_mixed" );
+  if( !t.run_test ) return;
+
+  exp_fflags = '0;
+  exp_frm    = '0;
+
+  for( int i = 0; i < CNumIters; i++ ) begin
+    rand_pc[i]      = 32'($urandom());
+    rand_seq_num[i] = p_seq_num_bits'($urandom());
+    rand_op1[i]     = 32'($urandom());
+    rand_waddr[i]   = 5'($urandom());
+
+    case (2'($urandom()))
+      2'd0: rand_uop[i] = OP_CSRRW;
+      2'd1: rand_uop[i] = OP_CSRRS;
+      default: rand_uop[i] = OP_CSRRC;
+    endcase
+
+    addr_sel = 4'($urandom());
+    unique case (addr_sel)
+      4'd0, 4'd1, 4'd2, 4'd3, 4'd4: rand_addr[i] = 12'h001;
+      4'd5, 4'd6, 4'd7, 4'd8:       rand_addr[i] = 12'h002;
+      4'd9, 4'd10, 4'd11:           rand_addr[i] = 12'h003;
+      4'd12:                        rand_addr[i] = 12'h000;
+      4'd13:                        rand_addr[i] = 12'h004;
+      default:                      rand_addr[i] = 12'hfff;
+    endcase
+
+    exp_wdata[i] = csr_model_read(rand_addr[i], exp_fflags, exp_frm);
+    exp_wen[i]   = (rand_waddr[i] != 5'd0);
+    csr_model_apply(exp_fflags, exp_frm, rand_uop[i], rand_addr[i], rand_op1[i]);
+  end
+
+  fork
+    begin
+      for( int i = 0; i < CNumIters; i++ ) begin
+        send(
+          rand_pc[i], rand_seq_num[i], rand_op1[i],
+          {20'b0, rand_addr[i]}, rand_waddr[i], rand_uop[i]
+        );
+      end
+    end
+
+    begin
+      for( int i = 0; i < CNumIters; i++ ) begin
+        recv(rand_pc[i], rand_seq_num[i], rand_waddr[i], exp_wdata[i], exp_wen[i]);
+      end
+    end
+  join
+
+  t.test_case_end();
+endtask
+
+//----------------------------------------------------------------------
+// test_case_csr_randomized_rd_x0
+//----------------------------------------------------------------------
+// Random write-only CSR operations using rd=x0. Each write is followed by
+// a read-back to verify state changed even when writeback is suppressed.
+
+task automatic test_case_csr_randomized_rd_x0();
+  localparam int CNumIters = 40;
+
+  logic [4:0] exp_fflags;
+  logic [2:0] exp_frm;
+
+  logic               [31:0] op1;
+  logic               [31:0] wr_old;
+  logic               [31:0] rd_old;
+  logic               [11:0] addr;
+  logic [p_seq_num_bits-1:0] seq_wr;
+  logic [p_seq_num_bits-1:0] seq_rd;
+
+  t.test_case_begin( "test_case_csr_randomized_rd_x0" );
+  if( !t.run_test ) return;
+
+  exp_fflags = '0;
+  exp_frm    = '0;
+
+  for( int i = 0; i < CNumIters; i++ ) begin
+    op1 = 32'($urandom());
+    seq_wr = p_seq_num_bits'(2*i);
+    seq_rd = p_seq_num_bits'(2*i + 1);
+
+    case (2'($urandom()))
+      2'd0: addr = 12'h001;
+      2'd1: addr = 12'h002;
+      default: addr = 12'h003;
+    endcase
+
+    wr_old = csr_model_read(addr, exp_fflags, exp_frm);
+    csr_model_apply(exp_fflags, exp_frm, OP_CSRRW, addr, op1);
+    rd_old = csr_model_read(addr, exp_fflags, exp_frm);
+
+    fork
+      begin
+        send('0, seq_wr, op1, {20'b0, addr}, 5'h0, OP_CSRRW);
+        send('0, seq_rd, 32'h0, {20'b0, addr}, 5'h1, OP_CSRRS);
+      end
+
+      begin
+        recv('0, seq_wr, 5'h0, wr_old, 0);
+        recv('0, seq_rd, 5'h1, rd_old, 1);
+      end
+    join
+  end
+
+  t.test_case_end();
+endtask
+
+//----------------------------------------------------------------------
 // run_csr_test_cases
 //----------------------------------------------------------------------
 
@@ -366,6 +562,8 @@ task run_csr_test_cases();
   test_case_csr_invalid_addr();
   test_case_csrrs_csrrc_frm();
   test_case_csrrc_full_clear();
+  test_case_csr_randomized_mixed();
+  test_case_csr_randomized_rd_x0();
 endtask
 
 `endif
