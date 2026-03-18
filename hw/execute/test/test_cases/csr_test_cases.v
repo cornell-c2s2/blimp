@@ -292,6 +292,38 @@ task test_case_csr_invalid_addr();
 endtask
 
 //----------------------------------------------------------------------
+// test_case_csr_invalid_addr_set_clear
+//----------------------------------------------------------------------
+// CSRRS/CSRRC on unmapped CSR addresses should be ignored and must not
+// perturb any mapped CSR state.
+
+task test_case_csr_invalid_addr_set_clear();
+  t.test_case_begin( "test_case_csr_invalid_addr_set_clear" );
+  if( !t.run_test ) return;
+
+  fork
+    begin
+      // Seed a mapped CSR.
+      send('0, 0, 32'h0000_001A, 32'h001, 5'h1, OP_CSRRW);
+      // Set/clear against invalid address must be ignored.
+      send('0, 1, 32'hFFFF_FFFF, 32'hFFF, 5'h2, OP_CSRRS);
+      send('0, 2, 32'hFFFF_FFFF, 32'hFFF, 5'h3, OP_CSRRC);
+      // Read mapped CSR back and ensure it is unchanged.
+      send('0, 3, 32'h0000_0000, 32'h001, 5'h4, OP_CSRRS);
+    end
+
+    begin
+      recv('0, 0, 5'h1, 32'h0000_0000, 1);
+      recv('0, 1, 5'h2, 32'h0000_0000, 1);
+      recv('0, 2, 5'h3, 32'h0000_0000, 1);
+      recv('0, 3, 5'h4, 32'h0000_001A, 1);
+    end
+  join
+
+  t.test_case_end();
+endtask
+
+//----------------------------------------------------------------------
 // test_case_csrrs_csrrc_frm
 //----------------------------------------------------------------------
 // CSRRS and CSRRC targeting frm (addr 0x002) specifically.
@@ -343,6 +375,38 @@ task test_case_csrrc_full_clear();
       recv('0, 0, 5'h1, 32'h0000_0000, 1);  // old fflags = 0
       recv('0, 1, 5'h2, 32'h0000_001F, 1);  // old fflags = 0x1F
       recv('0, 2, 5'h3, 32'h0000_0000, 1);  // fflags now 0
+    end
+  join
+
+  t.test_case_end();
+endtask
+
+//----------------------------------------------------------------------
+// test_case_csr_rd_x0_set_clear
+//----------------------------------------------------------------------
+// rd=x0 suppresses register writeback, but CSRRS/CSRRC must still update
+// CSR state atomically.
+
+task test_case_csr_rd_x0_set_clear();
+  t.test_case_begin( "test_case_csr_rd_x0_set_clear" );
+  if( !t.run_test ) return;
+
+  fork
+    begin
+      // Seed fcsr.
+      send('0, 0, 32'h0000_0055, 32'h003, 5'h1, OP_CSRRW);
+      // rd=x0 set then clear on fcsr.
+      send('0, 1, 32'h0000_000A, 32'h003, 5'h0, OP_CSRRS);
+      send('0, 2, 32'h0000_000C, 32'h003, 5'h0, OP_CSRRC);
+      // Read final state.
+      send('0, 3, 32'h0000_0000, 32'h003, 5'h2, OP_CSRRS);
+    end
+
+    begin
+      recv('0, 0, 5'h1, 32'h0000_0000, 1);  // old fcsr = 0
+      recv('0, 1, 5'h0, 32'h0000_0055, 0);  // old fcsr, rd=x0 => no writeback
+      recv('0, 2, 5'h0, 32'h0000_005F, 0);  // old fcsr after set
+      recv('0, 3, 5'h2, 32'h0000_0053, 1);  // final fcsr after clear
     end
   join
 
@@ -420,7 +484,7 @@ endtask
 //----------------------------------------------------------------------
 
 task automatic test_case_csr_randomized_mixed();
-  localparam int CNumIters = 100;
+  localparam int CNumIters = 160;
 
   logic               [31:0] rand_pc      [CNumIters];
   logic [p_seq_num_bits-1:0] rand_seq_num [CNumIters];
@@ -435,6 +499,7 @@ task automatic test_case_csr_randomized_mixed();
   logic [4:0] exp_fflags;
   logic [2:0] exp_frm;
   logic [3:0] addr_sel;
+  logic [2:0] op1_sel;
 
   t.test_case_begin( "test_case_csr_randomized_mixed" );
   if( !t.run_test ) return;
@@ -445,24 +510,56 @@ task automatic test_case_csr_randomized_mixed();
   for( int i = 0; i < CNumIters; i++ ) begin
     rand_pc[i]      = 32'($urandom());
     rand_seq_num[i] = p_seq_num_bits'($urandom());
-    rand_op1[i]     = 32'($urandom());
-    rand_waddr[i]   = 5'($urandom());
+    if ( i < 9 ) begin
+      // Deterministic prefix guarantees all cmd x mapped-addr combos hit.
+      rand_uop[i] = (i < 3) ? OP_CSRRW : ( (i < 6) ? OP_CSRRS : OP_CSRRC );
+      case (i % 3)
+        0: begin
+          rand_addr[i] = 12'h001;
+          rand_op1[i]  = 32'h0000_001F;
+        end
+        1: begin
+          rand_addr[i] = 12'h002;
+          rand_op1[i]  = 32'h0000_0007;
+        end
+        default: begin
+          rand_addr[i] = 12'h003;
+          rand_op1[i]  = 32'h0000_00FF;
+        end
+      endcase
+      rand_waddr[i] = 5'(i + 1);
+    end
+    else begin
+      // Periodically force rd=x0 to better stress writeback suppression.
+      rand_waddr[i] = ( (i % 8) == 0 ) ? 5'd0 : 5'($urandom());
 
-    case (2'($urandom()))
-      2'd0: rand_uop[i] = OP_CSRRW;
-      2'd1: rand_uop[i] = OP_CSRRS;
-      default: rand_uop[i] = OP_CSRRC;
-    endcase
+      case (2'($urandom()))
+        2'd0: rand_uop[i] = OP_CSRRW;
+        2'd1: rand_uop[i] = OP_CSRRS;
+        default: rand_uop[i] = OP_CSRRC;
+      endcase
 
-    addr_sel = 4'($urandom());
-    unique case (addr_sel)
-      4'd0, 4'd1, 4'd2, 4'd3, 4'd4: rand_addr[i] = 12'h001;
-      4'd5, 4'd6, 4'd7, 4'd8:       rand_addr[i] = 12'h002;
-      4'd9, 4'd10, 4'd11:           rand_addr[i] = 12'h003;
-      4'd12:                        rand_addr[i] = 12'h000;
-      4'd13:                        rand_addr[i] = 12'h004;
-      default:                      rand_addr[i] = 12'hfff;
-    endcase
+      // Inject corner payloads frequently so masking/set/clear edges are hit.
+      op1_sel = 3'($urandom());
+      unique case (op1_sel)
+        3'd0:    rand_op1[i] = 32'h0000_0000;
+        3'd1:    rand_op1[i] = 32'hFFFF_FFFF;
+        3'd2:    rand_op1[i] = 32'h0000_001F;
+        3'd3:    rand_op1[i] = 32'h0000_0007;
+        3'd4:    rand_op1[i] = 32'h0000_00E0;
+        default: rand_op1[i] = 32'($urandom());
+      endcase
+
+      addr_sel = 4'($urandom());
+      unique case (addr_sel)
+        4'd0, 4'd1, 4'd2, 4'd3, 4'd4: rand_addr[i] = 12'h001;
+        4'd5, 4'd6, 4'd7, 4'd8:       rand_addr[i] = 12'h002;
+        4'd9, 4'd10, 4'd11:           rand_addr[i] = 12'h003;
+        4'd12:                        rand_addr[i] = 12'h000;
+        4'd13:                        rand_addr[i] = 12'h004;
+        default:                      rand_addr[i] = 12'hfff;
+      endcase
+    end
 
     exp_wdata[i] = csr_model_read(rand_addr[i], exp_fflags, exp_frm);
     exp_wen[i]   = (rand_waddr[i] != 5'd0);
@@ -507,6 +604,8 @@ task automatic test_case_csr_randomized_rd_x0();
   logic               [11:0] addr;
   logic [p_seq_num_bits-1:0] seq_wr;
   logic [p_seq_num_bits-1:0] seq_rd;
+  rv_uop                     wr_uop;
+  logic                [2:0] op1_sel;
 
   t.test_case_begin( "test_case_csr_randomized_rd_x0" );
   if( !t.run_test ) return;
@@ -515,23 +614,39 @@ task automatic test_case_csr_randomized_rd_x0();
   exp_frm    = '0;
 
   for( int i = 0; i < CNumIters; i++ ) begin
-    op1 = 32'($urandom());
+    // Use corner payloads often so set/clear no-op/full-op behavior is stressed.
+    op1_sel = 3'($urandom());
+    unique case (op1_sel)
+      3'd0:    op1 = 32'h0000_0000;
+      3'd1:    op1 = 32'hFFFF_FFFF;
+      3'd2:    op1 = 32'h0000_001F;
+      3'd3:    op1 = 32'h0000_0007;
+      default: op1 = 32'($urandom());
+    endcase
+
     seq_wr = p_seq_num_bits'(2*i);
     seq_rd = p_seq_num_bits'(2*i + 1);
 
     case (2'($urandom()))
-      2'd0: addr = 12'h001;
-      2'd1: addr = 12'h002;
-      default: addr = 12'h003;
+      2'd0: wr_uop = OP_CSRRW;
+      2'd1: wr_uop = OP_CSRRS;
+      default: wr_uop = OP_CSRRC;
+    endcase
+
+    case (3'($urandom()))
+      3'd0, 3'd1: addr = 12'h001;
+      3'd2, 3'd3: addr = 12'h002;
+      3'd4, 3'd5: addr = 12'h003;
+      default:    addr = 12'hFFF;
     endcase
 
     wr_old = csr_model_read(addr, exp_fflags, exp_frm);
-    csr_model_apply(exp_fflags, exp_frm, OP_CSRRW, addr, op1);
+    csr_model_apply(exp_fflags, exp_frm, wr_uop, addr, op1);
     rd_old = csr_model_read(addr, exp_fflags, exp_frm);
 
     fork
       begin
-        send('0, seq_wr, op1, {20'b0, addr}, 5'h0, OP_CSRRW);
+        send('0, seq_wr, op1, {20'b0, addr}, 5'h0, wr_uop);
         send('0, seq_rd, 32'h0, {20'b0, addr}, 5'h1, OP_CSRRS);
       end
 
@@ -560,8 +675,10 @@ task run_csr_test_cases();
   test_case_csr_truncation();
   test_case_csr_cross_coherence();
   test_case_csr_invalid_addr();
+  test_case_csr_invalid_addr_set_clear();
   test_case_csrrs_csrrc_frm();
   test_case_csrrc_full_clear();
+  test_case_csr_rd_x0_set_clear();
   test_case_csr_randomized_mixed();
   test_case_csr_randomized_rd_x0();
 endtask

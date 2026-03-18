@@ -81,7 +81,16 @@ module CSRTestSuite #(
   csr_cvg csr_cvg_inst = new(CSR_intf);
   
   always @(posedge clk) begin
-    csr_cvg_inst.sample(.waddr(X__W_intf.waddr), .wen(X__W_intf.wen));
+    if ( !rst && CSR_intf.val && CSR_intf.rdy ) begin
+      csr_cvg_inst.sample(
+        .cmd   (CSR_intf.cmd),
+        .addr  (CSR_intf.addr),
+        .wdata (CSR_intf.wdata),
+        .rdata (CSR_intf.rdata),
+        .waddr (X__W_intf.waddr),
+        .wen   (X__W_intf.wen)
+      );
+    end
   end
   `endif
   

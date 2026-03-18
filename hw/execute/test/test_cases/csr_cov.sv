@@ -3,35 +3,27 @@
 class csr_cvg;
     virtual CSRIntf vif;
 
-    covergroup cg;
+    covergroup cg with function sample(
+      input logic [2:0]  cmd_i,
+      input logic [11:0] addr_i,
+      input logic [31:0] wdata_i,
+      input logic [31:0] rdata_i,
+      input logic        waddr_is_x0_i,
+      input logic        wen_i
+    );
 
-    // Handshake gating
-    val : coverpoint vif.val {
-      bins inactive = {0};
-      bins active   = {1};
-    }
+    option.per_instance = 1;
 
-    rdy : coverpoint vif.rdy {
-      bins not_ready = {0};
-      bins ready     = {1};
-      ignore_bins unreachable_not_ready = {0};
-    }
-
-    x_handshake: cross val, rdy {
-      ignore_bins not_ready = binsof(rdy.not_ready);
-    }
-
-    // Command semantics
-    cmd : coverpoint vif.cmd {
-      bins read   = {3'b000};
-      bins csrrw  = {3'b001};
-      bins csrrs  = {3'b010};
-      bins csrrc  = {3'b011};
-      bins others = default;
+    // Command semantics for this unit: only CSRRW/CSRRS/CSRRC are legal.
+    cmd : coverpoint cmd_i {
+      bins csrrw = {3'b001};
+      bins csrrs = {3'b010};
+      bins csrrc = {3'b011};
+      illegal_bins non_csr_cmd = default;
     }
 
     // Addresses of interest (per CSRFile.v: 0x001, 0x002, 0x003)
-    addr : coverpoint vif.addr {
+    addr : coverpoint addr_i {
       bins fflags = {12'h001};
       bins frm    = {12'h002};
       bins fcsr   = {12'h003};
@@ -39,34 +31,40 @@ class csr_cvg;
     }
 
     // Data patterns on write data
-    wdata_zero: coverpoint (vif.wdata == 32'h0000_0000) {
+    wdata_zero: coverpoint (wdata_i == 32'h0000_0000) {
       bins yes = {1};
       bins no  = {0};
     }
 
-    wdata_ones: coverpoint (vif.wdata == 32'hFFFF_FFFF) {
+    wdata_ones: coverpoint (wdata_i == 32'hFFFF_FFFF) {
       bins yes = {1};
       bins no  = {0};
     }
 
-    // Data patterns on read data
-    rdata_zero: coverpoint (vif.rdata == 32'h0000_0000) {
+    // Read data patterns that are reachable for implemented CSR widths.
+    rdata_zero: coverpoint (rdata_i == 32'h0000_0000) {
       bins yes = {1};
       bins no  = {0};
     }
 
-    rdata_ones: coverpoint (vif.rdata == 32'hFFFF_FFFF) {
-      bins yes = {1};
-      bins no  = {0};
+    rdata_fflags_max: coverpoint ((addr_i == 12'h001) && (rdata_i == 32'h0000_001F)) {
+      bins hit = {1};
     }
 
-    // Derived coverage points (passed as parameters to sample method)
-    waddr_x0: coverpoint waddr_is_x0_val {
+    rdata_frm_max: coverpoint ((addr_i == 12'h002) && (rdata_i == 32'h0000_0007)) {
+      bins hit = {1};
+    }
+
+    rdata_fcsr_max: coverpoint ((addr_i == 12'h003) && (rdata_i == 32'h0000_00FF)) {
+      bins hit = {1};
+    }
+
+    waddr_x0: coverpoint waddr_is_x0_i {
       bins x0  = {1};
       bins nx0 = {0};
     }
 
-    wen_cov: coverpoint wen_val {
+    wen_cov: coverpoint wen_i {
       bins no_write = {0};
       bins write    = {1};
     }
@@ -90,21 +88,20 @@ class csr_cvg;
 
     endgroup
 
-    // Internal state for derived coverpoints
-    logic waddr_is_x0_val = 0;
-    logic wen_val = 0;
-
     function new(virtual CSRIntf vif);
         this.vif = vif;
         cg = new();
     endfunction
 
-    task sample(input logic [4:0] waddr = 5'hx, input logic wen = 1'bx);
-        // Compute derived values
-        waddr_is_x0_val = (waddr == 5'd0);
-        wen_val = wen;
-        
-        cg.sample();
+    task sample(
+      input logic [2:0]  cmd,
+      input logic [11:0] addr,
+      input logic [31:0] wdata,
+      input logic [31:0] rdata,
+      input logic [4:0]  waddr,
+      input logic        wen
+    );
+      cg.sample(cmd, addr, wdata, rdata, (waddr == 5'd0), wen);
     endtask
 
 endclass
