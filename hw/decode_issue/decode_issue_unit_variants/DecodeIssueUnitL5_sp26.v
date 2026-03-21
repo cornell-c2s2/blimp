@@ -133,18 +133,15 @@ module DecodeIssueUnitL5_sp26 #(
   logic is_fp_alu, is_flw, is_fsw, is_fmv_x_w, is_fmv_w_x, is_fsgnj;
   logic need_int_rs1, need_int_rs2, need_fp_rs1, need_fp_rs2;
   logic fp_writes_rd;
-  logic inst_is_fp;
 
-  assign is_fp_alu   = (decoder_uop == OP_FADD_S) || (decoder_uop == OP_FSUB_S) || (decoder_uop == OP_FSUB_S);
+  assign is_fp_alu   = (decoder_uop == OP_FADD_S) ||
+                        (decoder_uop == OP_FSUB_S) ||
+                        (decoder_uop == OP_FMUL_S);
   assign is_fsgnj    = (decoder_uop == OP_FSGNJ_S);
   assign is_flw      = (decoder_uop == OP_FLW);
   assign is_fsw      = (decoder_uop == OP_FSW);
   assign is_fmv_x_w  = (decoder_uop == OP_FMV_X_W);  // FP→INT
   assign is_fmv_w_x  = (decoder_uop == OP_FMV_W_X);  // INT→FP
-  assign inst_is_fp =
-  is_fp_alu || is_fsgnj || is_flw || is_fsw ||
-  (decoder_uop == OP_FCVT_W_S) ||
-  is_fmv_x_w || is_fmv_w_x;
   
   // Which register file supplies each architectural operand
   assign need_fp_rs1  = is_fp_alu || is_fsgnj || is_fmv_x_w ||
@@ -277,7 +274,6 @@ module DecodeIssueUnitL5_sp26 #(
   //----------------------------------------------------------------------
 
   logic [p_phys_addr_bits-1:0] final_alloc_preg, final_alloc_ppreg;
-  logic                        final_alloc_rdy;
   logic                        final_stall_pending;
 
   // Mixed-reg selection (FLW/FSW use int rs1 + fp rs2)
@@ -295,11 +291,9 @@ module DecodeIssueUnitL5_sp26 #(
     if ( fp_writes_rd ) begin
       final_alloc_preg  = alloc_preg_fp;
       final_alloc_ppreg = alloc_ppreg_fp;
-      final_alloc_rdy   = alloc_rdy_fp;
     end else begin
       final_alloc_preg  = alloc_preg_int;
       final_alloc_ppreg = alloc_ppreg_int;
-      final_alloc_rdy   = alloc_rdy_int;
     end
 
     // Stall only on the lookups you actually enabled + required allocation
@@ -441,4 +435,3 @@ module DecodeIssueUnitL5_sp26 #(
 endmodule
 
 `endif // HW_DECODEISSUE_DECODEISSUEUNITVARIANTS_DECODEISSUEUNITL5_V
-

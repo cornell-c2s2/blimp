@@ -15,6 +15,7 @@ set(V_TEST_FILES
   hw/common/test/Fifo_test.v
   hw/common/test/PriorityEncoder_test.v
   hw/common/test/RRArb_test.v
+  hw/common/test/MemArbiter2_test.v
   hw/decode_issue/test/DecodeIssueUnitL1_test.v
   hw/decode_issue/test/DecodeIssueUnitL2_test.v
   hw/decode_issue/test/DecodeIssueUnitL3_test.v

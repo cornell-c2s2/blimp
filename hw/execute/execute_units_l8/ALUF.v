@@ -1,7 +1,7 @@
 //========================================================================
 // ALUF.v
 //========================================================================
-// Floating-point adder (IEEE-754 single precision) with dynamic
+// Floating-point adder/subtractor (IEEE-754 single precision) with dynamic
 // normalization and round-to-nearest-even (REN) using guard/round/sticky.
 // Based on the standard FP adder flow: exponent diff, alignment,
 // add/sub, normalize, rounding, post-processing.

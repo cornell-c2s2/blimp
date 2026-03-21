@@ -1,9 +1,9 @@
 //========================================================================
-// FPInstUnit.v
+// FPInstUnitL10.v
 //========================================================================
 // Floating-point miscellaneous instruction unit.
 //
-// Supports only:
+// Supports:
 //   - FSGNJ.S
 //   - FCVT.W.S
 //   - FMV.X.W
@@ -12,8 +12,8 @@
 // Author: Sumaia Jewena
 //========================================================================
 
-`ifndef HW_EXECUTE_EXECUTE_VARIANTS_L1_FPINSTUNIT_V
-`define HW_EXECUTE_EXECUTE_VARIANTS_L1_FPINSTUNIT_V
+`ifndef HW_EXECUTE_EXECUTE_VARIANTS_L10_FPINSTUNITL10_V
+`define HW_EXECUTE_EXECUTE_VARIANTS_L10_FPINSTUNITL10_V
 
 `include "defs/UArch.v"
 `include "intf/D__XIntf.v"
@@ -21,7 +21,7 @@
 
 import UArch::*;
 
-module FPInstUnit (
+module FPInstUnitL10 (
   input  logic clk,
   input  logic rst,
 
@@ -209,4 +209,4 @@ module FPInstUnit (
 
 endmodule
 
-`endif // HW_EXECUTE_EXECUTE_VARIANTS_L1_FPINSTUNIT_V
+`endif // HW_EXECUTE_EXECUTE_VARIANTS_L1_FPINSTUNITL10_V
