@@ -13,6 +13,6 @@ main:
     fmv.w.x  ft1, x11      # ft1 = 2.0
 
     # Floating point add
-    fadd.s   ft2, ft0, ft1 # ft2 = 3.0
+    fmul.s   ft2, ft0, ft1 # ft2 = 3.0
     ret
 

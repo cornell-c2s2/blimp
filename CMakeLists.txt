@@ -15,7 +15,6 @@ set(V_TEST_FILES
   hw/common/test/Fifo_test.v
   hw/common/test/PriorityEncoder_test.v
   hw/common/test/RRArb_test.v
-  hw/common/test/MemArbiter2_test.v
   hw/decode_issue/test/DecodeIssueUnitL1_test.v
   hw/decode_issue/test/DecodeIssueUnitL2_test.v
   hw/decode_issue/test/DecodeIssueUnitL3_test.v
@@ -38,6 +37,7 @@ set(V_TEST_FILES
   hw/execute/test/l7/LoadStoreUnitL7_test.v
   hw/execute/test/l8/CSRL8_test.v
   hw/execute/test/l8/ALUF_test.v
+  hw/execute/test/l8/FPInstUnit_test.v
   hw/execute/test/l9/FPUMult_test.v
   hw/fetch/test/FetchUnitL1_test.v
   hw/fetch/test/FetchUnitL2_test.v
