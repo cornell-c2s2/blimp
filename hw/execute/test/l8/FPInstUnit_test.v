@@ -108,22 +108,21 @@ module FPInstUnitTestSuite #(
   t_d__x_msg msg_to_send;
 
   task send(
-    input logic               [31:0] pc,
+    input logic [31:0] pc,
     input logic [p_seq_num_bits-1:0] seq_num,
-    input logic               [31:0] op1,
-    input logic               [31:0] op2,
-    input logic               [31:0] op3,
-    input logic                [4:0] waddr,
+    input logic [31:0] op1,
+    input logic [31:0] op2,
+    input logic [4:0] waddr,
     input logic [p_phys_addr_bits-1:0] preg,
     input logic [p_phys_addr_bits-1:0] ppreg,
-    input logic                      is_fp,
-    input rv_uop                     uop
+    input logic is_fp,
+    input rv_uop uop
   );
     msg_to_send.pc      = pc;
     msg_to_send.seq_num = seq_num;
     msg_to_send.op1     = op1;
     msg_to_send.op2     = op2;
-    msg_to_send.op3     = op3;
+    msg_to_send.op3     = 32'b0;
     msg_to_send.waddr   = waddr;
     msg_to_send.preg    = preg;
     msg_to_send.ppreg   = ppreg;
