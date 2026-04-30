@@ -30,6 +30,7 @@
 
 module BlimpV8_sp26 #(
   parameter p_opaq_bits     = 8,
+  parameter p_num_in_flight = 8,
   parameter p_seq_num_bits  = 5,
   parameter p_num_phys_regs = 36
 ) (
@@ -273,7 +274,8 @@ module BlimpV8_sp26 #(
   );
 
   LoadStoreUnitL7 #(
-    .p_opaq_bits (p_opaq_bits)
+    .p_opaq_bits (p_opaq_bits),
+    .p_num_in_flight (p_num_in_flight)
   ) MEM_XU (
     .D   (d__x_intfs[2]),
     .W   (x__w_intfs[2]),
