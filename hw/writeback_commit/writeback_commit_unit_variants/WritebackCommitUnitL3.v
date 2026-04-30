@@ -181,12 +181,12 @@ module WritebackCommitUnitL3 #(
     if ( rst )
       X_reg <= '{ 
         val: 1'b0, 
-        pc: 'x,
-        seq_num: 'x, 
-        waddr: 'x, 
-        wdata: 'x, 
+        pc: '0,
+        seq_num: '0, 
+        waddr: '0, 
+        wdata: '0, 
         wen: 1'b0,
-        ppreg: 'x
+        ppreg: '0
       };
     else
       X_reg <= X_reg_next;
@@ -206,12 +206,12 @@ module WritebackCommitUnitL3 #(
     else
       X_reg_next = '{ 
         val: 1'b0, 
-        pc: 'x,
-        seq_num: 'x, 
-        waddr: 'x, 
-        wdata: 'x, 
+        pc: '0,
+        seq_num: '0, 
+        waddr: '0, 
+        wdata: '0, 
         wen: 1'b0,
-        ppreg: 'x
+        ppreg: '0
       };
   end
 

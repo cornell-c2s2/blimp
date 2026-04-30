@@ -31,6 +31,7 @@ set(BlimpV1_TESTS
   BlimpV1_test/BlimpV1_add_test.v
   BlimpV1_test/BlimpV1_addi_test.v
   BlimpV1_test/BlimpV1_mul_test.v
+  BlimpV1_test/BlimpV1_ALL_test.v
 )
 
 # ------------------------------------------------------------------------
@@ -41,6 +42,7 @@ set(BlimpV2_TESTS
   BlimpV2_test/BlimpV2_add_test.v
   BlimpV2_test/BlimpV2_addi_test.v
   BlimpV2_test/BlimpV2_mul_test.v
+  BlimpV2_test/BlimpV2_ALL_test.v
 )
 
 # ------------------------------------------------------------------------
@@ -51,6 +53,7 @@ set(BlimpV3_TESTS
   BlimpV3_test/BlimpV3_add_test.v
   BlimpV3_test/BlimpV3_addi_test.v
   BlimpV3_test/BlimpV3_mul_test.v
+  BlimpV3_test/BlimpV3_ALL_test.v
 )
 
 # ------------------------------------------------------------------------
@@ -63,6 +66,7 @@ set(BlimpV4_TESTS
   BlimpV4_test/BlimpV4_mul_test.v
   BlimpV4_test/BlimpV4_lw_test.v
   BlimpV4_test/BlimpV4_sw_test.v
+  BlimpV4_test/BlimpV4_ALL_test.v
 )
 
 # ------------------------------------------------------------------------
@@ -77,6 +81,7 @@ set(BlimpV5_TESTS
   BlimpV5_test/BlimpV5_sw_test.v
   BlimpV5_test/BlimpV5_jal_test.v
   BlimpV5_test/BlimpV5_jalr_test.v
+  BlimpV5_test/BlimpV5_ALL_test.v
 )
 
 # ------------------------------------------------------------------------
@@ -92,6 +97,7 @@ set(BlimpV6_TESTS
   BlimpV6_test/BlimpV6_jal_test.v
   BlimpV6_test/BlimpV6_jalr_test.v
   BlimpV6_test/BlimpV6_bne_test.v
+  BlimpV6_test/BlimpV6_ALL_test.v
 )
 
 # ------------------------------------------------------------------------
@@ -134,6 +140,8 @@ set(BlimpV7_TESTS
   BlimpV7_test/BlimpV7_bge_test.v
   BlimpV7_test/BlimpV7_bltu_test.v
   BlimpV7_test/BlimpV7_bgeu_test.v
+
+  BlimpV7_test/BlimpV7_ALL_test.v
 )
 
 # ------------------------------------------------------------------------

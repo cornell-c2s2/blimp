@@ -273,7 +273,8 @@ module BlimpV8_sp26 #(
   );
 
   LoadStoreUnitL7 #(
-    .p_opaq_bits (p_opaq_bits)
+    .p_opaq_bits (p_opaq_bits),
+    .p_num_in_flight (1)
   ) MEM_XU (
     .D   (d__x_intfs[2]),
     .W   (x__w_intfs[2]),

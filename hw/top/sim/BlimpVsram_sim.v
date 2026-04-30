@@ -24,7 +24,7 @@ module BlimpVsram_sim;
   localparam p_num_phys_regs = 36;
   localparam p_opaq_bits     = 8;
   localparam p_seq_num_bits  = 5;
-  localparam p_num_entries   = 65536;
+  localparam p_num_entries   = 2048;
   localparam p_num_bits      = $clog2( p_num_entries );
   
   //----------------------------------------------------------------------
@@ -59,6 +59,19 @@ module BlimpVsram_sim;
     .inst_trace (inst_trace_notif),
     .*
   );
+
+  // BlimpV8_sp26 #(
+  //   .p_opaq_bits     (p_opaq_bits),
+  //   .p_seq_num_bits  (p_seq_num_bits),
+  //   .p_num_phys_regs (p_num_phys_regs)
+  // ) dut (
+  //   .inst_mem   (mem_intf[0]),
+  //   .data_mem   (mem_intf[1]),
+  //   .inst_trace (inst_trace_notif),
+  //   .inst_trace_deq_rdy (1),
+  //   .debug              (0),
+  //   .*
+  // );
 
   logic [31:0] inst_trace_pc;
   logic  [4:0] inst_trace_waddr;

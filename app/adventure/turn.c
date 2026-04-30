@@ -252,9 +252,9 @@ void copytrv( struct trav *trav1, struct trav *trav2 )
   int i;
 
   for ( i = 0; i < MAXTRAV; ++i ) {
-    trav2->tdest = trav1->tdest;
-    trav2->tverb = trav1->tverb;
-    trav2->tcond = trav1->tcond;
+    trav2[i].tdest = trav1[i].tdest;
+    trav2[i].tverb = trav1[i].tverb;
+    trav2[i].tcond = trav1[i].tcond;
   }
 }
 

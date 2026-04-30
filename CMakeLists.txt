@@ -371,21 +371,20 @@ foreach(V_SIM_FILE_REL_PATH ${BLIMP_SIMS})
   set(V_SIM_FILE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/${V_SIM_FILE_REL_PATH}")
   get_leaf(V_SIM_FILE ${V_SIM_FILE_PATH})
   sim_name(V_SIM_BIN ${V_SIM_FILE})
+  string(REGEX REPLACE "\\.v$" "" TOP_MODULE ${V_SIM_FILE})
+  set(EXTRA_VERILATOR_FLAGS --top-module ${TOP_MODULE})
 
   add_executable(${V_SIM_BIN} ${V_SIM_FILE_PATH} "hw/top/sim/utils/load_elf.cpp")
-  target_include_directories(${V_SIM_BIN} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_Verilog_DPI_INCLUDES})
+  target_include_directories(${V_SIM_BIN} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/.. ${CMAKE_Verilog_DPI_INCLUDES})
 
   if(CMAKE_Verilog_COMPILER_ID STREQUAL "Verilator")
     set(V_COMPILE_FLAGS "--timing --quiet-stats -I${CMAKE_CURRENT_SOURCE_DIR} -I${CMAKE_CURRENT_SOURCE_DIR}/../ --CFLAGS \"-std=c++20 -fcoroutines\"")
     if(TRACE)
       set(V_COMPILE_FLAGS "${V_COMPILE_FLAGS} --trace --trace-structs")
     endif()
-    
+
     # specifies top module, need to do this when including files from ip
-    set(EXTRA_VERILATOR_FLAGS "")
-    string(REGEX REPLACE "\\.v$" "" TOP_MODULE ${V_SIM_FILE})
     set(V_COMPILE_FLAGS "${V_COMPILE_FLAGS} --top-module ${TOP_MODULE}")
-    set(EXTRA_VERILATOR_FLAGS --top-module ${TOP_MODULE})
 
     set_source_files_properties(
       ${V_SIM_FILE_PATH}
