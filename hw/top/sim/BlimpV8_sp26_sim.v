@@ -29,6 +29,7 @@ module BlimpV8_sp26_sim;
   localparam p_seq_num_bits  = 5;
   localparam p_num_entries   = 2048;
   localparam p_num_bits      = $clog2( p_num_entries );
+  localparam p_max_in_flight = 1;
   
   //----------------------------------------------------------------------
   // Setup
@@ -59,7 +60,8 @@ module BlimpV8_sp26_sim;
   BlimpV8_sp26 #(
     .p_opaq_bits     (p_opaq_bits),
     .p_seq_num_bits  (p_seq_num_bits),
-    .p_num_phys_regs (p_num_phys_regs)
+    .p_num_phys_regs (p_num_phys_regs),
+    .p_max_in_flight (p_max_in_flight)
   ) dut (
     .inst_mem   (mem_intf[0]),
     .data_mem   (mem_intf[1]),
@@ -357,7 +359,7 @@ module BlimpV8_sp26_sim;
   assign xbar_peripheral_resp.msg.data   = peripheral_resp.msg.data;
   assign peripheral_resp.rdy             = xbar_peripheral_resp.rdy;
 
-  top_sp26_MemXbar #(
+  top_sp26_tapein1_MemXbar #(
     .p_opaq_bits (p_opaq_bits)
   ) xbar (
     .clk              (clk),

@@ -38,9 +38,6 @@ MEMORY
   io  (!r!w!x!a!i) : ORIGIN = 0xF0000000, LENGTH = 0x10000000
 }
 
-/* Export stack-top symbol so startup code can place sp inside mem */
-PROVIDE( _stack_top = ORIGIN(mem) + LENGTH(mem) + 1 );
-
 /*----------------------------------------------------------------------*/
 /* Sections                                                             */
 /*----------------------------------------------------------------------*/

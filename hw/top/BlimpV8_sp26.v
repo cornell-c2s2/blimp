@@ -31,7 +31,8 @@
 module BlimpV8_sp26 #(
   parameter p_opaq_bits     = 8,
   parameter p_seq_num_bits  = 5,
-  parameter p_num_phys_regs = 36
+  parameter p_num_phys_regs = 36,
+  parameter p_max_in_flight = 8
 ) (
   input logic clk,
   input logic rst,
@@ -226,7 +227,7 @@ module BlimpV8_sp26 #(
                             OP_BGEU_VEC;
 
   FetchUnitL3 #(
-    .p_max_in_flight (8)
+    .p_max_in_flight (p_max_in_flight)
   ) FU (
     .mem    (inst_mem),
     .D      (f__d_intf),

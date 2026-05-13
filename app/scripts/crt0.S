@@ -93,7 +93,7 @@ _start:
 
   # initialize stack pointer to the top of linker-defined RAM
 
-  la    sp, _stack_top
+  lui   sp, 0x000ff
 
 1:
 
