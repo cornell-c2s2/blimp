@@ -138,7 +138,7 @@ void getwords( void )
   wptr = words;
   while ( ( *wptr = blimp_tolower( *wptr ) ) )
     ++wptr;
-  blimp_sscanf( words, "%19s %19s", word1, word2 );
+  blimp_sscanf( words, "%s %s", word1, word2 );
   if ( dbugflg )
     blimp_printf( "WORD1 = %s, WORD2 = %s\n", word1, word2 );
 }
