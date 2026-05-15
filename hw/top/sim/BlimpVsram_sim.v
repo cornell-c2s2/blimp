@@ -24,7 +24,7 @@ module BlimpVsram_sim;
   localparam p_num_phys_regs = 36;
   localparam p_opaq_bits     = 8;
   localparam p_seq_num_bits  = 5;
-  localparam p_num_entries   = 2048;
+  localparam p_num_entries   = 65536;
   localparam p_num_bits      = $clog2( p_num_entries );
   
   //----------------------------------------------------------------------
@@ -170,7 +170,8 @@ module BlimpVsram_sim;
     input bit [31:0] addr,
     input bit [31:0] data
   );
-    sram.sram_minion.sram.sram.mem[addr[p_num_bits+1:2]] = data;
+    // sram.sram_minion.sram.sram.mem[addr[p_num_bits+1:2]] = data;
+    sram.init_mem( addr, data );
   endfunction
 
   export "DPI-C" function init_mem;
