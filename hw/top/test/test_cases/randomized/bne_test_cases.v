@@ -22,7 +22,7 @@ task test_case_randomized_bne_1_simple();
   if (!h.t.run_test) return;
   fl_reset();
 
-  pc = 32'h200;
+  pc = 32'h000;
   for (i = 0; i < 20; i = i + 1) begin
     r1 = $urandom & 32'h1F;
     r2 = $urandom & 32'h1F;
@@ -93,7 +93,7 @@ task test_case_randomized_bne_2_backward();
   if (!h.t.run_test) return;
   fl_reset();
 
-  pc = 32'h200;
+  pc = 32'h000;
   for (i = 0; i < 20; i = i + 1) begin
     // create a small counted loop: rcnt = N; loop: addi rcnt, rcnt, -1; bne rcnt, x0, loop
     rcnt = ($urandom % 15) + 1; // 1..15
@@ -148,7 +148,7 @@ task test_case_randomized_bne_3_mix();
   if (!h.t.run_test) return;
   fl_reset();
 
-  pc = 32'h200;
+  pc = 32'h000;
   for (i = 0; i < 20; i = i + 1) begin
     r1 = $urandom & 32'h1F;
     r2 = $urandom & 32'h1F;

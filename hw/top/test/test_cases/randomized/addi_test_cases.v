@@ -28,7 +28,7 @@ task test_case_randomized_addi_1_basic();
   if (!h.t.run_test) return;
   fl_reset();
 
-  pc = 32'h200;
+  pc = 32'h000;
   for (i = 0; i < 100; i = i + 1) begin
     rd = $urandom % 32;
     imm = $urandom % 4096;
@@ -56,7 +56,7 @@ task test_case_randomized_addi_2_depchains();
   if (!h.t.run_test) return;
   fl_reset();
 
-  pc = 32'h200;
+  pc = 32'h000;
   for (c = 0; c < 50; c = c + 1) begin
     a = ($urandom % 31) + 1;
     b = ($urandom % 31) + 1;
@@ -89,7 +89,7 @@ task test_case_randomized_addi_3_x0();
   if (!h.t.run_test) return;
   fl_reset();
 
-  pc = 32'h200;
+  pc = 32'h000;
   for (i = 0; i < 60; i = i + 1) begin
     rd = $urandom % 32;
     if (($urandom % 4) == 0)

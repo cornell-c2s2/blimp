@@ -25,10 +25,10 @@ task test_case_randomized_lw_1_offset();
 
   // Write assembly program and data into memory
 
-  h.asm( 'h200, "addi x1, x0, 0x200" );
-  h.asm( 'h204, "slli x1, x1, 4"     );
+  h.asm( 'h000, "addi x1, x0, 0x200" );
+  h.asm( 'h004, "slli x1, x1, 4"     );
 
-  pc = 'h208;
+  pc = 'h008;
 
   for (int i = 0; i < 200; i++) begin
     
@@ -90,29 +90,37 @@ task test_case_randomized_lw_2_chains();
 
   unused = $urandom(seed + 1);
 
-  // Initialize the registers for both chains
-
+  // Chain bases live at 0x1100..0x1170 (well above the instruction
+  // program and outside [0x000, 0x200)). Every initial value (and every
+  // mem entry) has bit 12 set, so any AND or LW result also has bit 12
+  // set and the chain stays inside [0x1000, 0x11FC] — i.e., always lands
+  // on an address h.data initialized below.
   for (int i = 0; i < 8; i++) begin
-    reg_fl[i+1] = 32'h100 + (i << 4);
+    reg_fl[i+1] = 32'h1100 + (i << 4);
   end
 
-  // Initialize memory randomly
-
+  // Initialize memory randomly. mem[i] is stored at (i << 2) + 0x1000,
+  // and each entry is masked into [0x1000, 0x11FC] so that following
+  // a chain pointer always lands inside the data window.
   for (int i = 0; i < 128; i++) begin
-    mem[i] = $urandom() & 32'h1fc;
-    h.data( i << 2, mem[i] );
+    mem[i] = ($urandom() & 32'h1fc) + 32'h1000;
+    h.data( (i << 2) + 32'h1000, mem[i] );
   end
 
-  h.asm( 'h200, "addi x1, x0, 0x100" );
-  h.asm( 'h204, "addi x2, x0, 0x110" );
-  h.asm( 'h208, "addi x3, x0, 0x120" );
-  h.asm( 'h20c, "addi x4, x0, 0x130" );
-  h.asm( 'h210, "addi x5, x0, 0x140" );
-  h.asm( 'h214, "addi x6, x0, 0x150" );
-  h.asm( 'h218, "addi x7, x0, 0x160" );
-  h.asm( 'h21c, "addi x8, x0, 0x170" );
+  // Build base = 0x1000 in x9, then derive x1..x8 = 0x1100..0x1170.
+  h.asm( 'h000, "addi x9, x0, 0x100" );
+  h.asm( 'h004, "slli x9, x9, 4"     );
 
-  pc = 'h220;
+  h.asm( 'h008, "addi x1, x9, 0x100" );
+  h.asm( 'h00c, "addi x2, x9, 0x110" );
+  h.asm( 'h010, "addi x3, x9, 0x120" );
+  h.asm( 'h014, "addi x4, x9, 0x130" );
+  h.asm( 'h018, "addi x5, x9, 0x140" );
+  h.asm( 'h01c, "addi x6, x9, 0x150" );
+  h.asm( 'h020, "addi x7, x9, 0x160" );
+  h.asm( 'h024, "addi x8, x9, 0x170" );
+
+  pc = 'h028;
 
   for (int i = 0; i < 500; i++) begin
     select_chain = 1'($urandom());
@@ -134,13 +142,16 @@ task test_case_randomized_lw_2_chains();
     // Determine which instruction to write
 
     if (select_inst == 0) begin
-      inst = $sformatf("xor x%0d, x%0d, x%0d", rd_idx, rs1_idx, rs2_idx);
+      // AND (not XOR) so chain values keep bit 12 set and stay in
+      // [0x1000, 0x11FC] — XOR cancels bit 12 and bounces the chain
+      // outside the data window.
+      inst = $sformatf("and x%0d, x%0d, x%0d", rd_idx, rs1_idx, rs2_idx);
 
-      reg_fl[rd_idx] = reg_fl[rs1_idx] ^ reg_fl[rs2_idx];
-    end 
+      reg_fl[rd_idx] = reg_fl[rs1_idx] & reg_fl[rs2_idx];
+    end
     else begin
       addr = reg_fl[rs1_idx];
-      data = mem[(addr >> 2)];
+      data = mem[((addr - 32'h1000) >> 2)];
 
       inst = $sformatf("lw x%0d, 0(x%0d)", rd_idx, rs1_idx);
 
@@ -157,17 +168,17 @@ task test_case_randomized_lw_2_chains();
   // Verify traces
   h.check_traces();
 
-  // h.check_trace( 'h200, 1, 'h0000_0100, 1 );
-  // h.check_trace( 'h204, 2, 'h0000_0110, 1 );
-  // h.check_trace( 'h208, 3, 'h0000_0120, 1 );
-  // h.check_trace( 'h20c, 4, 'h0000_0130, 1 );
-  // h.check_trace( 'h210, 5, 'h0000_0140, 1 );
-  // h.check_trace( 'h214, 6, 'h0000_0150, 1 );
-  // h.check_trace( 'h218, 7, 'h0000_0160, 1 );
-  // h.check_trace( 'h21c, 8, 'h0000_0170, 1 );
+  // h.check_trace( 'h000, 1, 'h0000_0100, 1 );
+  // h.check_trace( 'h004, 2, 'h0000_0110, 1 );
+  // h.check_trace( 'h008, 3, 'h0000_0120, 1 );
+  // h.check_trace( 'h00c, 4, 'h0000_0130, 1 );
+  // h.check_trace( 'h010, 5, 'h0000_0140, 1 );
+  // h.check_trace( 'h014, 6, 'h0000_0150, 1 );
+  // h.check_trace( 'h018, 7, 'h0000_0160, 1 );
+  // h.check_trace( 'h01c, 8, 'h0000_0170, 1 );
 
   // for (int i = 0; i < 500; i++) begin
-  //   h.check_trace( 'h220 + i*4, reg_tr[i], wdata_tr[i], 1 );
+  //   h.check_trace( 'h020 + i*4, reg_tr[i], wdata_tr[i], 1 );
   // end
 
   h.t.test_case_end();

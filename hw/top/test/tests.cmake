@@ -255,4 +255,5 @@ set(BlimpV8_sp26_TESTS
   BlimpV8_sp26_test/BlimpV8_sp26_remu_test.v
 
   BlimpV8_sp26_test/BlimpV8_sp26_ALL_test.v
+  BlimpV8_sp26_test/BlimpV8_sp26_debug_test.v
 )

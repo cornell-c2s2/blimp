@@ -24,6 +24,7 @@ module BlimpV8_sp26_every_test;
   `include "hw/top/test/test_cases/directed/blt_test_cases.v"
   `include "hw/top/test/test_cases/directed/bltu_test_cases.v"
   `include "hw/top/test/test_cases/directed/bne_test_cases.v"
+  `include "hw/top/test/test_cases/directed/debug_test_cases.v"
   `include "hw/top/test/test_cases/directed/div_test_cases.v"
   `include "hw/top/test/test_cases/directed/divu_test_cases.v"
   `include "hw/top/test/test_cases/directed/fence_test_cases.v"
@@ -93,55 +94,56 @@ module BlimpV8_sp26_every_test;
     if ((s <= 0) || (s ==  9)) run_directed_blt_tests();
     if ((s <= 0) || (s == 10)) run_directed_bltu_tests();
     if ((s <= 0) || (s == 11)) run_directed_bne_tests();
-    if ((s <= 0) || (s == 12)) run_directed_div_tests();
-    if ((s <= 0) || (s == 13)) run_directed_divu_tests();
-    if ((s <= 0) || (s == 14)) run_directed_fence_tests();
-    if ((s <= 0) || (s == 15)) run_directed_jal_tests();
-    if ((s <= 0) || (s == 16)) run_directed_jalr_tests();
-    if ((s <= 0) || (s == 17)) run_directed_lb_tests();
-    if ((s <= 0) || (s == 18)) run_directed_lbu_tests();
-    if ((s <= 0) || (s == 19)) run_directed_lh_tests();
-    if ((s <= 0) || (s == 20)) run_directed_lhu_tests();
-    if ((s <= 0) || (s == 21)) run_directed_lui_tests();
-    if ((s <= 0) || (s == 22)) run_directed_lw_tests();
-    if ((s <= 0) || (s == 23)) run_directed_mul_tests();
-    if ((s <= 0) || (s == 24)) run_directed_mulh_tests();
-    if ((s <= 0) || (s == 25)) run_directed_mulhsu_tests();
-    if ((s <= 0) || (s == 26)) run_directed_mulhu_tests();
-    if ((s <= 0) || (s == 27)) run_directed_or_tests();
-    if ((s <= 0) || (s == 28)) run_directed_ori_tests();
-    if ((s <= 0) || (s == 29)) run_directed_rem_tests();
-    if ((s <= 0) || (s == 30)) run_directed_remu_tests();
-    if ((s <= 0) || (s == 31)) run_directed_sb_tests();
-    if ((s <= 0) || (s == 32)) run_directed_sh_tests();
-    if ((s <= 0) || (s == 33)) run_directed_sll_tests();
-    if ((s <= 0) || (s == 34)) run_directed_slli_tests();
-    if ((s <= 0) || (s == 35)) run_directed_slt_tests();
-    if ((s <= 0) || (s == 36)) run_directed_slti_tests();
-    if ((s <= 0) || (s == 37)) run_directed_sltiu_tests();
-    if ((s <= 0) || (s == 38)) run_directed_sltu_tests();
-    if ((s <= 0) || (s == 39)) run_directed_sra_tests();
-    if ((s <= 0) || (s == 40)) run_directed_srai_tests();
-    if ((s <= 0) || (s == 41)) run_directed_srl_tests();
-    if ((s <= 0) || (s == 42)) run_directed_srli_tests();
-    if ((s <= 0) || (s == 43)) run_directed_sub_tests();
-    if ((s <= 0) || (s == 44)) run_directed_sw_tests();
-    if ((s <= 0) || (s == 45)) run_directed_xor_tests();
-    if ((s <= 0) || (s == 46)) run_directed_xori_tests();
+    if ((s <= 0) || (s == 12)) run_directed_debug_tests();
+    if ((s <= 0) || (s == 13)) run_directed_div_tests();
+    if ((s <= 0) || (s == 14)) run_directed_divu_tests();
+    if ((s <= 0) || (s == 15)) run_directed_fence_tests();
+    if ((s <= 0) || (s == 16)) run_directed_jal_tests();
+    if ((s <= 0) || (s == 17)) run_directed_jalr_tests();
+    if ((s <= 0) || (s == 18)) run_directed_lb_tests();
+    if ((s <= 0) || (s == 19)) run_directed_lbu_tests();
+    if ((s <= 0) || (s == 20)) run_directed_lh_tests();
+    if ((s <= 0) || (s == 21)) run_directed_lhu_tests();
+    if ((s <= 0) || (s == 22)) run_directed_lui_tests();
+    if ((s <= 0) || (s == 23)) run_directed_lw_tests();
+    if ((s <= 0) || (s == 24)) run_directed_mul_tests();
+    if ((s <= 0) || (s == 25)) run_directed_mulh_tests();
+    if ((s <= 0) || (s == 26)) run_directed_mulhsu_tests();
+    if ((s <= 0) || (s == 27)) run_directed_mulhu_tests();
+    if ((s <= 0) || (s == 28)) run_directed_or_tests();
+    if ((s <= 0) || (s == 29)) run_directed_ori_tests();
+    if ((s <= 0) || (s == 30)) run_directed_rem_tests();
+    if ((s <= 0) || (s == 31)) run_directed_remu_tests();
+    if ((s <= 0) || (s == 32)) run_directed_sb_tests();
+    if ((s <= 0) || (s == 33)) run_directed_sh_tests();
+    if ((s <= 0) || (s == 34)) run_directed_sll_tests();
+    if ((s <= 0) || (s == 35)) run_directed_slli_tests();
+    if ((s <= 0) || (s == 36)) run_directed_slt_tests();
+    if ((s <= 0) || (s == 37)) run_directed_slti_tests();
+    if ((s <= 0) || (s == 38)) run_directed_sltiu_tests();
+    if ((s <= 0) || (s == 39)) run_directed_sltu_tests();
+    if ((s <= 0) || (s == 40)) run_directed_sra_tests();
+    if ((s <= 0) || (s == 41)) run_directed_srai_tests();
+    if ((s <= 0) || (s == 42)) run_directed_srl_tests();
+    if ((s <= 0) || (s == 43)) run_directed_srli_tests();
+    if ((s <= 0) || (s == 44)) run_directed_sub_tests();
+    if ((s <= 0) || (s == 45)) run_directed_sw_tests();
+    if ((s <= 0) || (s == 46)) run_directed_xor_tests();
+    if ((s <= 0) || (s == 47)) run_directed_xori_tests();
     
-    if ((s <= 0) || (s == 47)) run_golden_add_tests();
-    if ((s <= 0) || (s == 48)) run_golden_addi_tests();
-    if ((s <= 0) || (s == 49)) run_golden_bne_tests();
-    if ((s <= 0) || (s == 50)) run_golden_jal_tests();
-    if ((s <= 0) || (s == 51)) run_golden_jalr_tests();
-    if ((s <= 0) || (s == 52)) run_golden_lw_tests();
-    if ((s <= 0) || (s == 53)) run_golden_mul_tests();
-    if ((s <= 0) || (s == 54)) run_golden_sw_tests();
+    if ((s <= 0) || (s == 48)) run_golden_add_tests();
+    if ((s <= 0) || (s == 49)) run_golden_addi_tests();
+    if ((s <= 0) || (s == 50)) run_golden_bne_tests();
+    if ((s <= 0) || (s == 51)) run_golden_jal_tests();
+    if ((s <= 0) || (s == 52)) run_golden_jalr_tests();
+    if ((s <= 0) || (s == 53)) run_golden_lw_tests();
+    if ((s <= 0) || (s == 54)) run_golden_mul_tests();
+    if ((s <= 0) || (s == 55)) run_golden_sw_tests();
     
-    if ((s <= 0) || (s == 55)) run_randomized_add_tests();
-    if ((s <= 0) || (s == 56)) run_randomized_addi_tests();
-    if ((s <= 0) || (s == 57)) run_randomized_bne_tests();
-    if ((s <= 0) || (s == 58)) run_randomized_lw_tests();
+    if ((s <= 0) || (s == 56)) run_randomized_add_tests();
+    if ((s <= 0) || (s == 57)) run_randomized_addi_tests();
+    if ((s <= 0) || (s == 58)) run_randomized_bne_tests();
+    if ((s <= 0) || (s == 59)) run_randomized_lw_tests();
 
     test_bench_end();
   end
