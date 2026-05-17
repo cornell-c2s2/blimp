@@ -57,7 +57,7 @@ task test_case_golden_sw_1_regs();
   // Write h.data into memory
 
   h.data( 'h100, 'h0101_0101 );
-  h.data( 'h104, 'h0202_0202 );
+  h.data( 'h104, 'h0202_0002 );
   h.data( 'h108, 'h0303_0303 );
   h.data( 'h10c, 'h0404_0404 );
 

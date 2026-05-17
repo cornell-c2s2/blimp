@@ -27,6 +27,8 @@ task test_case_randomized_lw_1_offset();
 
   h.asm( 'h000, "addi x1, x0, 0x200" );
   h.asm( 'h004, "slli x1, x1, 4"     );
+  h.asm( 'h000, "addi x1, x0, 0x200" );
+  h.asm( 'h004, "slli x1, x1, 4"     );
 
   pc = 'h008;
 
@@ -165,8 +167,8 @@ task test_case_randomized_lw_2_chains();
 
       inst = $sformatf("xor x%0d, x%0d, x%0d", rd_idx, rs1_idx, rs2_idx);
 
-      reg_fl[rd_idx] = reg_fl[rs1_idx] ^ reg_fl[rs2_idx];
-    end 
+      reg_fl[rd_idx] = reg_fl[rs1_idx] & reg_fl[rs2_idx];
+    end
     else begin
       addr = reg_fl[rs1_idx];
       // addr is now 0x2000 + offset; convert to mem[] index by subtracting 0x2000 and shifting

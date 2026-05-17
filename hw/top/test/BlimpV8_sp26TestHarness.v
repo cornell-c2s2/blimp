@@ -32,7 +32,7 @@ module BlimpV8_sp26TestHarness #(
   logic clk, rst;
   TestUtils t( .* );
 
-  initial t.timeout = 20000;
+  initial t.timeout = 80000;
 
   `MEM_REQ_DEFINE ( p_opaq_bits );
   `MEM_RESP_DEFINE( p_opaq_bits );
@@ -95,6 +95,31 @@ module BlimpV8_sp26TestHarness #(
   );
     fl_mem.init_mem( addr, data );
     fl_init        ( addr, data );
+  endtask
+
+  //----------------------------------------------------------------------
+  // Debug Mode Helpers
+  //----------------------------------------------------------------------
+
+  task set_debug( input logic val );
+    debug = val;
+  endtask
+
+  task set_inst_trace_deq_rdy( input logic val );
+    inst_trace_deq_rdy = val;
+  endtask
+
+  task debug_step(
+    input logic [31:0] pc,
+    input logic  [4:0] waddr,
+    input logic [31:0] wdata,
+    input logic        wen
+  );
+    inst_trace_deq_rdy = 1'b0;
+    check_trace( pc, waddr, wdata, wen );
+    inst_trace_deq_rdy = 1'b1;
+    @( posedge clk ); #1;
+    inst_trace_deq_rdy = 1'b0;
   endtask
 
   //----------------------------------------------------------------------

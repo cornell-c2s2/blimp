@@ -29,7 +29,7 @@ STARTUP( crt0.o )
    .text in a RWX section; however, you can suppress it in the linker
    with -Wl,--no-warn-rwx-segments
 
-   Since our entry point is 0x200, we'll define `mem` to start there
+   Since our entry point is 0x000, we'll define `mem` to start there
 */
 
 MEMORY

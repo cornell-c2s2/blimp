@@ -40,6 +40,10 @@ function(vdeps DEPENDENCIES)
   foreach(FILE_LINE ${FILE_CONTENTS})
     string(REGEX MATCHALL "^[^\\/]*`include[ \\t\\r\\n\\f]*(\"(.+)\"|'(.+)')[ \\t\\r\\n\\f]*$" INCL_MATCHES ${FILE_LINE})
     if(NOT ${CMAKE_MATCH_2} IN_LIST VDEPENDENCIES)
+      # Skip absolute-path includes that don't exist (e.g., ifdef-guarded NDA vendor files)
+      if(IS_ABSOLUTE "${CMAKE_MATCH_2}" AND NOT EXISTS "${CMAKE_MATCH_2}")
+        continue()
+      endif()
       # Check for memoization
       get_property(MEMOIZED
         DIRECTORY ${CMAKE_CURRENT_LIST_DIR}
