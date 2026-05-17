@@ -60,6 +60,19 @@ module BlimpVsram_sim;
     .*
   );
 
+  // BlimpV8_sp26 #(
+  //   .p_opaq_bits     (p_opaq_bits),
+  //   .p_seq_num_bits  (p_seq_num_bits),
+  //   .p_num_phys_regs (p_num_phys_regs)
+  // ) dut (
+  //   .inst_mem   (mem_intf[0]),
+  //   .data_mem   (mem_intf[1]),
+  //   .inst_trace (inst_trace_notif),
+  //   .inst_trace_deq_rdy (1),
+  //   .debug              (0),
+  //   .*
+  // );
+
   logic [31:0] inst_trace_pc;
   logic  [4:0] inst_trace_waddr;
   logic [31:0] inst_trace_wdata;
@@ -157,7 +170,8 @@ module BlimpVsram_sim;
     input bit [31:0] addr,
     input bit [31:0] data
   );
-    sram.sram_minion.sram.sram.mem[addr[p_num_bits+1:2]] = data;
+    // sram.sram_minion.sram.sram.mem[addr[p_num_bits+1:2]] = data;
+    sram.init_mem( addr, data );
   endfunction
 
   export "DPI-C" function init_mem;

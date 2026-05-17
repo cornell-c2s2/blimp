@@ -93,15 +93,15 @@ module LoadStoreUnitL7 #(
     if ( rst )
       D_reg <= '{ 
         val:      1'b0, 
-        pc:       'x,
-        seq_num:  'x,
-        op1:      'x, 
-        op2:      'x,
-        waddr:    'x,
-        preg:     'x,
-        ppreg:    'x,
-        mem_data: 'x,
-        uop:      rv_uop'('x)
+        pc:       '0,
+        seq_num:  '0,
+        op1:      '0, 
+        op2:      '0,
+        waddr:    '0,
+        preg:     '0,
+        ppreg:    '0,
+        mem_data: '0,
+        uop:      rv_uop'('0)
       };
     else
       D_reg <= D_reg_next;
@@ -126,15 +126,15 @@ module LoadStoreUnitL7 #(
     else if ( stage2_push )
       D_reg_next = '{ 
         val:      1'b0, 
-        pc:       'x,
-        seq_num:  'x,
-        op1:      'x, 
-        op2:      'x,
-        waddr:    'x,
-        preg:     'x,
-        ppreg:    'x,
-        mem_data: 'x,
-        uop:      rv_uop'('x)
+        pc:       '0,
+        seq_num:  '0,
+        op1:      '0, 
+        op2:      '0,
+        waddr:    '0,
+        preg:     '0,
+        ppreg:    '0,
+        mem_data: '0,
+        uop:      rv_uop'('0)
       };
     else
       D_reg_next = D_reg;
@@ -249,13 +249,13 @@ module LoadStoreUnitL7 #(
     if ( rst )
       stage2_reg <= '{ 
         val:     1'b0, 
-        pc:      'x,
-        seq_num: 'x,
-        waddr:   'x,
-        preg:    'x,
-        ppreg:   'x,
-        uop:     rv_uop'('x),
-        offset:  'x
+        pc:      '0,
+        seq_num: '0,
+        waddr:   '0,
+        preg:    '0,
+        ppreg:   '0,
+        uop:     rv_uop'('0),
+        offset:  '0
       };
     else
       stage2_reg <= stage2_reg_next;
@@ -269,13 +269,13 @@ module LoadStoreUnitL7 #(
     else if ( W_xfer )
       stage2_reg_next = '{ 
         val:     1'b0, 
-        pc:      'x,
-        seq_num: 'x,
-        waddr:   'x,
-        preg:    'x,
-        ppreg:   'x,
-        uop:     rv_uop'('x),
-        offset:  'x
+        pc:      '0,
+        seq_num: '0,
+        waddr:   '0,
+        preg:    '0,
+        ppreg:   '0,
+        uop:     rv_uop'('0),
+        offset:  '0
       };
     else
       stage2_reg_next = stage2_reg;
@@ -303,10 +303,10 @@ module LoadStoreUnitL7 #(
       OP_LW:   sext_data = base_data;
       OP_LBU:  sext_data = { 24'b0, base_data[7:0]  };
       OP_LHU:  sext_data = { 16'b0, base_data[15:0] };
-      OP_SB:   sext_data = 'x;
-      OP_SH:   sext_data = 'x;
-      OP_SW:   sext_data = 'x;
-      default: sext_data = 'x;
+      OP_SB:   sext_data = '0;
+      OP_SH:   sext_data = '0;
+      OP_SW:   sext_data = '0;
+      default: sext_data = '0;
     endcase
   end
 

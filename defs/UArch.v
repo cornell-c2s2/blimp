@@ -14,7 +14,7 @@ package UArch;
   // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
   // A linearization of opcodes to indicate a specific instruction type
 
-  parameter num_ops = 41;
+  parameter num_ops = 42;
 
   typedef enum logic [$clog2(num_ops)-1:0] {
     // Arithmetic

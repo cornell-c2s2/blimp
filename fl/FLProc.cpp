@@ -15,7 +15,7 @@
 // Constructor
 //------------------------------------------------------------------------
 
-FLProc::FLProc() : pc( 0x200 )
+FLProc::FLProc() : pc( 0x000 )
 {
   // Add peripherals
   mem.add_peripheral( &terminal );
@@ -28,7 +28,7 @@ FLProc::FLProc() : pc( 0x200 )
 
 void FLProc::reset()
 {
-  pc = 0x200;
+  pc = 0x000;
   mem.clear();
 }
 
