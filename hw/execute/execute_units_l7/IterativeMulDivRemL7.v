@@ -66,9 +66,9 @@ module IterativeMulDivRemStepL7 (
       OP_MULH:   next_b = b >> 1;
       OP_MULHU:  next_b = b >> 1;
       OP_MULHSU: next_b = b >> 1;
-      OP_DIV:    next_b = $signed(b) >>> 1;
+      OP_DIV:    next_b = b >> 1;
       OP_DIVU:   next_b = b >> 1;
-      OP_REM:    next_b = $signed(b) >>> 1;
+      OP_REM:    next_b = b >> 1;
       OP_REMU:   next_b = b >> 1;
       default:   next_b = 'x;
     endcase
@@ -121,20 +121,20 @@ module IterativeMulDivRemStepL7 (
       endcase
     end
 
-    // Handling overflow
-    if( ( b[63:32] == 'hffffffff ) & ( a[31:0] == 'h80000000) ) begin
-      case( uop )
-        OP_DIV: begin
-          next_result = {32'b0, 'h80000000};
-          done        = 1'b1;
-        end
-        OP_REM: begin
-          next_result = '0;
-          done        = 1'b1;
-        end
-        default: begin end // Don't change
-      endcase
-    end
+    // // Handling overflow
+    // if( ( b[63:32] == 'hffffffff ) & ( a[31:0] == 'h80000000) ) begin
+    //   case( uop )
+    //     OP_DIV: begin
+    //       next_result = {32'b0, 'h80000000};
+    //       done        = 1'b1;
+    //     end
+    //     OP_REM: begin
+    //       next_result = '0;
+    //       done        = 1'b1;
+    //     end
+    //     default: begin end // Don't change
+    //   endcase
+    // end
   end
 endmodule
 
