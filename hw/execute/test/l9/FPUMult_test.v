@@ -8,6 +8,36 @@
 `include "test/fl/TestIstream.v"
 `include "test/fl/TestOstream.v"
 
+`ifndef VERILATOR
+`include "hw/execute/test/test_cases/FPUMult_Coverage.svh"
+`else
+class FPUMult_Coverage;
+  function new();
+  endfunction
+
+  function void sample_inputs(
+    logic        s0,
+    logic        s1,
+    logic [7:0]  e0,
+    logic [7:0]  e1,
+    logic [22:0] f0,
+    logic [22:0] f1
+  );
+  endfunction
+
+  function void sample_results(
+    logic        s_out,
+    logic [7:0]  e_out,
+    logic [22:0] f_out,
+    logic        of,
+    logic        uf,
+    logic        add
+  );
+  endfunction
+endclass
+`endif
+
+
 import UArch::*;
 import TestEnv::*;
 
@@ -54,6 +84,12 @@ module FPUMultTestSuite #(
     .W (X__W_intf),
     .*
   );
+
+  FPUMult_Coverage cov;
+
+  initial begin
+    cov = new();
+  end
 
   //----------------------------------------------------------------------
   // FL D Interface
@@ -151,6 +187,36 @@ module FPUMultTestSuite #(
 
     W_Ostream.recv(msg_to_recv);
   endtask
+
+  //----------------------------------------------------------------------
+  // Coverage sampling
+  //----------------------------------------------------------------------
+
+  always @(posedge clk) begin
+    if ( !rst && D__X_intf.val && D__X_intf.rdy ) begin
+      cov.sample_inputs(
+        D__X_intf.op1[31],
+        D__X_intf.op2[31],
+        D__X_intf.op1[30:23],
+        D__X_intf.op2[30:23],
+        D__X_intf.op1[22:0],
+        D__X_intf.op2[22:0]
+      );
+    end
+  end
+
+  always @(posedge clk) begin
+  if ( !rst && X__W_intf.val && X__W_intf.rdy ) begin
+    cov.sample_results(
+      X__W_intf.wdata[31],
+      X__W_intf.wdata[30:23],
+      X__W_intf.wdata[22:0],
+      1'b0,
+      1'b0,
+      1'b0
+    );
+    end
+  end
 
   string trace;
 
