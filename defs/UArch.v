@@ -14,7 +14,7 @@ package UArch;
   // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
   // A linearization of opcodes to indicate a specific instruction type
 
-  parameter num_ops = 42;
+  parameter num_ops = 44;
 
   typedef enum logic [$clog2(num_ops)-1:0] {
     // Arithmetic
@@ -66,7 +66,10 @@ package UArch;
     // CSR
     OP_CSRRW,
     OP_CSRRS,
-    OP_CSRRC
+    OP_CSRRC,
+    OP_CSRRWI,
+    OP_CSRRSI,
+    OP_CSRRCI
   } rv_uop;
 
   // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -91,6 +94,12 @@ package UArch;
   parameter OP_SLL_VEC    = num_ops'(1 << OP_SLL    );
   parameter OP_LUI_VEC    = num_ops'(1 << OP_LUI    );
   parameter OP_AUIPC_VEC  = num_ops'(1 << OP_AUIPC  );
+  parameter OP_CSRRW_VEC  = num_ops'(1 << OP_CSRRW  );
+  parameter OP_CSRRS_VEC  = num_ops'(1 << OP_CSRRS  );
+  parameter OP_CSRRC_VEC  = num_ops'(1 << OP_CSRRC  );
+  parameter OP_CSRRWI_VEC = num_ops'(1 << OP_CSRRWI );
+  parameter OP_CSRRSI_VEC = num_ops'(1 << OP_CSRRSI );
+  parameter OP_CSRRCI_VEC = num_ops'(1 << OP_CSRRCI );
   parameter OP_LB_VEC     = num_ops'(1 << OP_LB     );
   parameter OP_LH_VEC     = num_ops'(1 << OP_LH     );
   parameter OP_LW_VEC     = num_ops'(1 << OP_LW     );
@@ -115,8 +124,8 @@ package UArch;
   parameter OP_DIVU_VEC   = num_ops'(1 << OP_DIVU   );
   parameter OP_REM_VEC    = num_ops'(1 << OP_REM    );
   parameter OP_REMU_VEC   = num_ops'(1 << OP_REMU   );
-  parameter OP_FADD_VEC = num_ops'(1 << OP_FADD_S );
-  parameter OP_FSUB_VEC = num_ops'(1 << OP_FSUB_S );
+  parameter OP_FADD_VEC   = num_ops'(1 << OP_FADD_S );
+  parameter OP_FSUB_VEC   = num_ops'(1 << OP_FSUB_S );
 
   parameter p_tinyrv1 = OP_ADD_VEC
                       | OP_MUL_VEC

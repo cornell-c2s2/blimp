@@ -114,6 +114,7 @@ module DecodeIssueUnitL5 #(
   logic [4:0] decoder_waddr;
   logic       decoder_wen;
   rv_imm_type decoder_imm_sel;
+  logic       decoder_op1_sel;
   logic       decoder_op2_sel;
   logic [1:0] decoder_jal;
   logic       decoder_op3_sel;
@@ -127,6 +128,7 @@ module DecodeIssueUnitL5 #(
     .waddr   (decoder_waddr),
     .wen     (decoder_wen),
     .imm_sel (decoder_imm_sel),
+    .op1_sel (decoder_op1_sel),
     .op2_sel (decoder_op2_sel),
     .jal     (decoder_jal),
     .op3_sel (decoder_op3_sel)
@@ -244,7 +246,10 @@ module DecodeIssueUnitL5 #(
   logic [31:0] op1, op2;
 
   always_comb begin
-    op1 = rdata0;
+    if( decoder_op1_sel )
+      op1 = {27'b0,F_reg.inst[19:15]};
+    else
+      op1 = rdata0;
     if( decoder_op2_sel )
       op2 = imm;
     else
