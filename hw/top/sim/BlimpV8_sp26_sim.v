@@ -7,7 +7,7 @@
 `include "intf/mem_intf.sv"
 `include "intf/mem_net_req.sv"
 `include "intf/mem_net_resp.sv"
-`include "top/sp26/rtl/mem_xbar.sv"
+`include "top/sp26/rtl/tapein1/mem_xbar.sv"
 
 `include "sram/SRAMMem.v"
 
