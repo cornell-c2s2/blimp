@@ -1,5 +1,5 @@
 //========================================================================
-// DecodeIssueUnitL5.v
+// DecodeIssueUnitL6.v
 //========================================================================
 // An in-order, single-issue decoder with register renaming
 
@@ -24,7 +24,7 @@
 
 import ISA::*;
 
-module DecodeIssueUnitL5 #(
+module DecodeIssueUnitL5_sp26 #(
   parameter p_num_pipes                                = 1,
   parameter p_num_phys_regs                            = 36,
   parameter rv_op_vec [p_num_pipes-1:0] p_pipe_subsets = '{default: p_tinyrv1}
@@ -61,7 +61,9 @@ module DecodeIssueUnitL5 #(
   //----------------------------------------------------------------------
 
   SquashNotif.pub squash_pub,
-  SquashNotif.sub squash_sub
+  SquashNotif.sub squash_sub,
+
+  input logic debug_stall
 );
 
   localparam p_seq_num_bits   = F.p_seq_num_bits;
@@ -114,6 +116,7 @@ module DecodeIssueUnitL5 #(
   logic [4:0] decoder_waddr;
   logic       decoder_wen;
   rv_imm_type decoder_imm_sel;
+  logic       decoder_op1_sel;
   logic       decoder_op2_sel;
   logic [1:0] decoder_jal;
   logic       decoder_op3_sel;
@@ -127,6 +130,7 @@ module DecodeIssueUnitL5 #(
     .waddr   (decoder_waddr),
     .wen     (decoder_wen),
     .imm_sel (decoder_imm_sel),
+    .op1_sel (decoder_op1_sel),
     .op2_sel (decoder_op2_sel),
     .jal     (decoder_jal),
     .op3_sel (decoder_op3_sel)
@@ -193,7 +197,7 @@ module DecodeIssueUnitL5 #(
     case( decoder_jal )
       2'd1:    jump_target = F_reg.pc + imm;                // JAL
       2'd2:    jump_target = (rdata0 + imm) & 32'hFFFFFFFE; // JALR
-      default: jump_target = '0;
+      default: jump_target = 'x;
     endcase
   end
 
@@ -233,9 +237,10 @@ module DecodeIssueUnitL5 #(
     .xfer  (X_xfer)
   );
 
-  assign F.rdy = (X_xfer & !stall_pending & decoder_val) | 
+  assign F.rdy = ~debug_stall &
+                 ((X_xfer & !stall_pending & decoder_val) | 
                  should_squash                           |
-                 (!F_reg.val);
+                 (!F_reg.val));
 
   //----------------------------------------------------------------------
   // Pass remaining signals to pipes
@@ -244,7 +249,10 @@ module DecodeIssueUnitL5 #(
   logic [31:0] op1, op2;
 
   always_comb begin
-    op1 = rdata0;
+    if( decoder_op1_sel )
+      op1 = {27'b0,F_reg.inst[19:15]};
+    else
+      op1 = rdata0;
     if( decoder_op2_sel )
       op2 = imm;
     else
