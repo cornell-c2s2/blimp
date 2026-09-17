@@ -26,6 +26,8 @@ enum inst_name_t {
   SRA,
   SRL,
   SLL,
+  FADD_S,
+  FSUB_S,
 
   // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
   // Register-Immediate Arithmetic

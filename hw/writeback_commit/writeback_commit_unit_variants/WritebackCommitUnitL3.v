@@ -120,6 +120,7 @@ module WritebackCommitUnitL3 #(
   logic [p_phys_addr_bits-1:0] Ex_ppreg_sel;
   logic                        Ex_val_sel;
 
+`ifndef SYNTHESIS
   assign Ex_pc_sel      = Ex_pc_masked.or();
   assign Ex_seq_num_sel = Ex_seq_num_masked.or();
   assign Ex_waddr_sel   = Ex_waddr_masked.or();
@@ -128,6 +129,29 @@ module WritebackCommitUnitL3 #(
   assign Ex_preg_sel    = Ex_preg_masked.or();
   assign Ex_ppreg_sel   = Ex_ppreg_masked.or();
   assign Ex_val_sel     = Ex_val_masked.or();
+`else
+  always_comb begin
+    Ex_pc_sel      = '0;
+    Ex_seq_num_sel = '0;
+    Ex_waddr_sel   = '0;
+    Ex_wdata_sel   = '0;
+    Ex_wen_sel     = '0;
+    Ex_preg_sel    = '0;
+    Ex_ppreg_sel   = '0;
+    Ex_val_sel     = '0;
+    
+    for (int i = 0; i < p_num_pipes; i = i + 1) begin
+      Ex_pc_sel      = Ex_pc_sel      | Ex_pc_masked[i];
+      Ex_seq_num_sel = Ex_seq_num_sel | Ex_seq_num_masked[i];
+      Ex_waddr_sel   = Ex_waddr_sel   | Ex_waddr_masked[i];
+      Ex_wdata_sel   = Ex_wdata_sel   | Ex_wdata_masked[i];
+      Ex_wen_sel     = Ex_wen_sel     | Ex_wen_masked[i];
+      Ex_preg_sel    = Ex_preg_sel    | Ex_preg_masked[i];
+      Ex_ppreg_sel   = Ex_ppreg_sel   | Ex_ppreg_masked[i];
+      Ex_val_sel     = Ex_val_sel     | Ex_val_masked[i];
+    end
+  end
+`endif // SYNTHESIS
 
   // No backpressure - always ready
   generate
@@ -157,12 +181,12 @@ module WritebackCommitUnitL3 #(
     if ( rst )
       X_reg <= '{ 
         val: 1'b0, 
-        pc: 'x,
-        seq_num: 'x, 
-        waddr: 'x, 
-        wdata: 'x, 
+        pc: '0,
+        seq_num: '0, 
+        waddr: '0, 
+        wdata: '0, 
         wen: 1'b0,
-        ppreg: 'x
+        ppreg: '0
       };
     else
       X_reg <= X_reg_next;
@@ -182,12 +206,12 @@ module WritebackCommitUnitL3 #(
     else
       X_reg_next = '{ 
         val: 1'b0, 
-        pc: 'x,
-        seq_num: 'x, 
-        waddr: 'x, 
-        wdata: 'x, 
+        pc: '0,
+        seq_num: '0, 
+        waddr: '0, 
+        wdata: '0, 
         wen: 1'b0,
-        ppreg: 'x
+        ppreg: '0
       };
   end
 
