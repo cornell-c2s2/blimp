@@ -25,7 +25,7 @@ task test_case_randomized_add_1_sanity();
   if (!h.t.run_test) return;
   fl_reset();
 
-  pc = 32'h200;
+  pc = 32'h000;
   for (i = 0; i < 200; i = i + 1) begin
     r1 = $urandom & 32'h1F;
     r2 = $urandom & 32'h1F;
@@ -64,7 +64,7 @@ task test_case_randomized_add_2_deps();
   if (!h.t.run_test) return;
   fl_reset();
 
-  pc = 32'h200;
+  pc = 32'h000;
   for (c = 0; c < 50; c = c + 1) begin
     a = ( ($urandom & 31) == 0 ) ? 1 : ($urandom & 32'h1F);
     b = ( ($urandom & 31) == 0 ) ? 2 : ($urandom & 32'h1F);
@@ -109,7 +109,7 @@ task test_case_randomized_add_3_x0();
   if (!h.t.run_test) return;
   fl_reset();
 
-  pc = 32'h200;
+  pc = 32'h000;
   for (i = 0; i < 150; i = i + 1) begin
     r1 = $urandom & 32'h1F;
     r2 = $urandom & 32'h1F;

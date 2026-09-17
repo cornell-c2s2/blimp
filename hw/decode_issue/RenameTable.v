@@ -154,8 +154,23 @@ module RenameTable #(
     end
   endgenerate
 
+`ifndef SYNTHESIS
   assign alloc_preg  = ( alloc_areg != 0 ) ? preg_alloc_mask.or()
                                            : 0;
+`else
+  logic [p_phys_addr_bits-1:0] alloc_preg_or;
+  
+  always_comb begin
+    alloc_preg_or = '0;
+    for (int k = 1; k < p_num_phys_regs; k = k + 1) begin
+      alloc_preg_or = alloc_preg_or | preg_alloc_mask[k];
+    end
+  end
+  
+  assign alloc_preg  = ( alloc_areg != 0 ) ? alloc_preg_or
+                                           : 0;
+`endif // SYNTHESIS
+
   assign alloc_ppreg = ( alloc_areg != 0 ) ? rename_table[alloc_areg].preg
                                            : 0;
   
@@ -176,7 +191,7 @@ module RenameTable #(
       lookup_pending[0] = 0;
     end else begin
       lookup_preg[0]    = rename_table[lookup_areg[0]].preg;
-      if( complete_preg == lookup_preg[0] )
+      if( complete_val && ( complete_preg == lookup_preg[0] ) )
         lookup_pending[0] = 1'b0; // Bypass
       else
         lookup_pending[0] = rename_table[lookup_areg[0]].pending;
@@ -187,7 +202,7 @@ module RenameTable #(
       lookup_pending[1] = 0;
     end else begin
       lookup_preg[1]    = rename_table[lookup_areg[1]].preg;
-      if( complete_preg == lookup_preg[1] )
+      if( complete_val && ( complete_preg == lookup_preg[1] ) )
         lookup_pending[1] = 1'b0; // Bypass
       else
         lookup_pending[1] = rename_table[lookup_areg[1]].pending;

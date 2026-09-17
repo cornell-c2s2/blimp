@@ -89,7 +89,7 @@ module DecodeIssueUnitL5_sp26 #(
 
   always_ff @( posedge clk ) begin
     if ( rst )
-      F_reg <= '{ val: 1'b0, inst: 'x, pc: 'x, seq_num: 'x };
+      F_reg <= '{ val: 1'b0, inst: '0, pc: '0, seq_num: '0 };
     else
       F_reg <= F_reg_next;
   end
@@ -100,7 +100,7 @@ module DecodeIssueUnitL5_sp26 #(
     if ( F_xfer )
       F_reg_next = '{ val: 1'b1, inst: F.inst, pc: F.pc, seq_num: F.seq_num };
     else if ( X_xfer | should_squash )
-      F_reg_next = '{ val: 1'b0, inst: 'x, pc: 'x, seq_num: 'x };
+      F_reg_next = '{ val: 1'b0, inst: '0, pc: '0, seq_num: '0 };
     else
       F_reg_next = F_reg;
   end

@@ -179,8 +179,13 @@ function(version_name VNAME BLIMP_VERSION)
     return()
   endif()
 
-  string(REGEX MATCH "BlimpV([0-9]+)" BLIMP_VERSION ${BLIMP_VERSION})
-  set(${VNAME} "v${CMAKE_MATCH_1}" PARENT_SCOPE)
+  string(REGEX MATCH "BlimpV([0-9]+)(_.+)?" BLIMP_VERSION_MATCH ${BLIMP_VERSION})
+  if(CMAKE_MATCH_2)
+    string(REPLACE "_" "-" SUFFIX "${CMAKE_MATCH_2}")
+    set(${VNAME} "v${CMAKE_MATCH_1}${SUFFIX}" PARENT_SCOPE)
+  else()
+    set(${VNAME} "v${CMAKE_MATCH_1}" PARENT_SCOPE)
+  endif()
 endfunction()
 
 #------------------------------------------------------------------------
@@ -252,7 +257,7 @@ foreach(V_TEST_FILE_REL_PATH ${V_TEST_FILES})
   remove_extension(V_TEST_BIN ${V_TEST_FILE})
 
   add_executable(${V_TEST_BIN} ${V_TEST_FILE_PATH})
-  target_include_directories(${V_TEST_BIN} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_Verilog_DPI_INCLUDES})
+  target_include_directories(${V_TEST_BIN} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/../ ${CMAKE_Verilog_DPI_INCLUDES})
 
   if(CMAKE_Verilog_COMPILER_ID STREQUAL "Verilator")
     target_compile_options(${V_TEST_BIN} PRIVATE --timing --quiet-stats --CFLAGS "-std=c++20 -fcoroutines")
@@ -279,15 +284,30 @@ foreach(V_TEST_FILE_REL_PATH ${V_TEST_FILES})
     SOURCE ${V_TEST_FILE_REL_PATH}
     INCLUDE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}/../"
   )
-  add_prefix(TEST_DEPS "${CMAKE_CURRENT_SOURCE_DIR}/")
-  set_property(SOURCE ${V_TEST_FILE_PATH} APPEND PROPERTY OBJECT_DEPENDS ${TEST_DEPS})
+  set(TEST_DEPS_ABS "")
+  foreach(DEP ${TEST_DEPS})
+    unset(DEP_PATH)
+    find_file(
+      DEP_PATH
+      NAMES ${DEP}
+      PATHS "${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}/../"
+      NO_DEFAULT_PATH
+      NO_CACHE
+    )
+    if(DEP_PATH)
+      list(APPEND TEST_DEPS_ABS ${DEP_PATH})
+    else()
+      list(APPEND TEST_DEPS_ABS "${CMAKE_CURRENT_SOURCE_DIR}/${DEP}")
+    endif()
+  endforeach()
+  set_property(SOURCE ${V_TEST_FILE_PATH} APPEND PROPERTY OBJECT_DEPENDS ${TEST_DEPS_ABS})
 
   # Add linting
   vlint(${V_TEST_BIN}-lint
     TARGET_NAME ${V_TEST_BIN}
     SOURCES ${V_TEST_FILE_REL_PATH}
-    INCLUDE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}"
-    DEPENDS ${TEST_DEPS}
+    INCLUDE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}/../"
+    DEPENDS ${TEST_DEPS_ABS}
   )
   add_dependencies(${V_TEST_BIN} ${V_TEST_BIN}-lint)
 
@@ -371,21 +391,20 @@ foreach(V_SIM_FILE_REL_PATH ${BLIMP_SIMS})
   set(V_SIM_FILE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/${V_SIM_FILE_REL_PATH}")
   get_leaf(V_SIM_FILE ${V_SIM_FILE_PATH})
   sim_name(V_SIM_BIN ${V_SIM_FILE})
+  string(REGEX REPLACE "\\.v$" "" TOP_MODULE ${V_SIM_FILE})
+  set(EXTRA_VERILATOR_FLAGS --top-module ${TOP_MODULE})
 
   add_executable(${V_SIM_BIN} ${V_SIM_FILE_PATH} "hw/top/sim/utils/load_elf.cpp")
-  target_include_directories(${V_SIM_BIN} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_Verilog_DPI_INCLUDES})
+  target_include_directories(${V_SIM_BIN} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/.. ${CMAKE_Verilog_DPI_INCLUDES})
 
   if(CMAKE_Verilog_COMPILER_ID STREQUAL "Verilator")
     set(V_COMPILE_FLAGS "--timing --quiet-stats -I${CMAKE_CURRENT_SOURCE_DIR} -I${CMAKE_CURRENT_SOURCE_DIR}/../ --CFLAGS \"-std=c++20 -fcoroutines\"")
     if(TRACE)
       set(V_COMPILE_FLAGS "${V_COMPILE_FLAGS} --trace --trace-structs")
     endif()
-    
+
     # specifies top module, need to do this when including files from ip
-    set(EXTRA_VERILATOR_FLAGS "")
-    string(REGEX REPLACE "\\.v$" "" TOP_MODULE ${V_SIM_FILE})
     set(V_COMPILE_FLAGS "${V_COMPILE_FLAGS} --top-module ${TOP_MODULE}")
-    set(EXTRA_VERILATOR_FLAGS --top-module ${TOP_MODULE})
 
     set_source_files_properties(
       ${V_SIM_FILE_PATH}
