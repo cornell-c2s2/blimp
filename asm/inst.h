@@ -78,6 +78,7 @@ enum inst_name_t {
 
   ECALL,
   EBREAK,
+  MRET,
 
   // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
   // M-Extension
@@ -98,6 +99,9 @@ enum inst_name_t {
   CSRRW,
   CSRRS,
   CSRRC,
+  CSRRWI,
+  CSRRSI,
+  CSRRCI,
 };
 
 typedef struct {
@@ -177,6 +181,7 @@ const inst_spec_t inst_specs[] = {
 
     { ECALL, "ecall", 0x00000073, 0xFFFFFFFF },
     { EBREAK, "ebreak", 0x00100073, 0xFFFFFFFF },
+    { MRET, "mret", 0x30200073, 0xFFFFFFFF },
 
     // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     // M-Extension
@@ -197,6 +202,9 @@ const inst_spec_t inst_specs[] = {
     { CSRRW,  "csrrw   rd, csr, rs1",  0x00001073, 0x0000707F }, 
     { CSRRS,  "csrrs   rd, csr, rs1",  0x00002073, 0x0000707F }, 
     { CSRRC,  "csrrc   rd, csr, rs1",  0x00003073, 0x0000707F }, 
+    { CSRRWI, "csrrwi  rd, csr, uimm", 0x00005073, 0x0000707F },
+    { CSRRSI, "csrrsi  rd, csr, uimm", 0x00006073, 0x0000707F },
+    { CSRRCI, "csrrci  rd, csr, uimm", 0x00007073, 0x0000707F },
 };
 
 //------------------------------------------------------------------------

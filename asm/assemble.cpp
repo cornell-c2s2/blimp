@@ -26,7 +26,8 @@ std::map<std::string, std::function<uint32_t( const std::string& )>>
                       { "imm_s", imm_s_mask },   { "imm_b", imm_b_mask },
                       { "imm_u", imm_u_mask },   { "imm_j", imm_j_mask },
                       { "imm_is", imm_is_mask }, { "pred", pred_mask },
-                      { "succ", succ_mask } };
+                      { "succ", succ_mask },     { "csr", csr_mask },
+                      { "uimm", uimm_mask } };
 
 std::map<std::string,
          std::function<uint32_t( const std::string&, uint32_t )>>
@@ -83,11 +84,12 @@ uint32_t assemble( const char* vassembly, uint32_t* vpc )
         encoding |= asm_pc_field_map[spec_token]( inst_token, pc );
       }
       else {
-        encoding |= asm_field_map[spec_token]( inst_token );
+        encoding |= asm_field_map.at( spec_token )( inst_token );
       }
     } catch ( std::exception& e ) {
-      std::cout << e.what() << std::endl;
-      std::cout << "Unrecognized spec token: " << spec_token << std::endl;
+      throw std::invalid_argument( std::format(
+          "Error assembling '{}', field '{}': {}",
+          assembly, spec_token, e.what() ) );
     }
   }
 

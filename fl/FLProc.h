@@ -43,6 +43,22 @@ class FLProc {
   // Peripherals
   FLExit     exit;
   FLTerminal terminal;
+
+  // Machine-mode-only CSRs: MPP is fixed to M, mtvec uses Direct mode.
+  struct MachineCsrs {
+    uint32_t mtvec    = 0;
+    uint32_t mstatus  = 0x1800;
+    uint32_t mie      = 0;
+    uint32_t mcause   = 0;
+    uint32_t mepc     = 0;
+    uint32_t mtval    = 0;
+    uint32_t mscratch = 0;
+  } csrs;
+
+  bool     has_csr( uint32_t addr ) const;
+  uint32_t read_csr( uint32_t addr );
+  void     write_csr( uint32_t addr, uint32_t val );
+  FLTrace  take_trap( uint32_t cause, uint32_t tval = 0 );
 };
 
 #endif  // FL_PROC_H

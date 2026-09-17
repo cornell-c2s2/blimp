@@ -34,6 +34,8 @@ class FLInst {
   __attribute__( ( const ) ) uint32_t imm_u() const;
   __attribute__( ( const ) ) uint32_t imm_j() const;
   __attribute__( ( const ) ) uint32_t imm_is() const;
+  __attribute__( ( const ) ) uint32_t csr_addr() const; // Bits 31:20
+  __attribute__( ( const ) ) uint32_t uimm() const; // Bits 19:15, unsigned
 
   //----------------------------------------------------------------------
   // Protected attrributes

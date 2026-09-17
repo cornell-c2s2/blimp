@@ -360,6 +360,46 @@ std::string get_imm_is_id( uint32_t binary )
 }
 
 //------------------------------------------------------------------------
+// CSR Specifiers
+//------------------------------------------------------------------------
+
+uint32_t csr_mask( const std::string& csr )
+{
+  int32_t val = get_imm_int( csr );
+  if ( val < 0 || val > 0xfff )
+    throw std::invalid_argument( "CSR address must be in [0, 4095]" );
+  return (uint32_t) val << 20;
+}
+
+uint32_t uimm_mask( const std::string& imm )
+{
+  int32_t val = get_imm_int( imm );
+  if ( val < 0 || val > 31 )
+    throw std::invalid_argument( "CSR immediate must be in [0, 31]" );
+  return (uint32_t) val << 15;
+}
+
+uint32_t get_csr( uint32_t binary )
+{
+  return ( binary >> 20 ) & 0xfff;
+}
+
+uint32_t get_uimm( uint32_t binary )
+{
+  return ( binary >> 15 ) & 0x1f;
+}
+
+std::string get_csr_id( uint32_t binary )
+{
+  return std::format( "0x{:03x}", get_csr( binary ) );
+}
+
+std::string get_uimm_id( uint32_t binary )
+{
+  return std::to_string( get_uimm( binary ) );
+}
+
+//------------------------------------------------------------------------
 // Address Specifiers
 //------------------------------------------------------------------------
 

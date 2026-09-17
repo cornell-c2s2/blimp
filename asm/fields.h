@@ -51,6 +51,17 @@ std::string get_imm_j_id( uint32_t binary );
 std::string get_imm_is_id( uint32_t binary );
 
 //------------------------------------------------------------------------
+// CSR Specifiers (unsigned)
+//------------------------------------------------------------------------
+
+uint32_t csr_mask( const std::string& csr );
+uint32_t uimm_mask( const std::string& imm );
+uint32_t get_csr( uint32_t binary );
+uint32_t get_uimm( uint32_t binary );
+std::string get_csr_id( uint32_t binary );
+std::string get_uimm_id( uint32_t binary );
+
+//------------------------------------------------------------------------
 // Address Specifiers
 //------------------------------------------------------------------------
 

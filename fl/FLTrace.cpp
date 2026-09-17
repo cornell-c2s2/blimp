@@ -5,6 +5,7 @@
 
 #include "fl/FLTrace.h"
 #include <format>
+#include <stdexcept>
 #include <string>
 
 //------------------------------------------------------------------------
@@ -32,17 +33,26 @@ FLTrace::FLTrace( uint32_t *vstruct )
   wen   = ( vstruct[2] >> 5 ) & 0x00000001;
 }
 
+FLTrace::FLTrace( uint32_t pc, bool trap, uint32_t cause )
+  : trap( trap ), cause( trap ? cause : 0 ), pc( pc ),
+    waddr( 0 ), wdata( 0 ), wen( false )
+{}
+
 //------------------------------------------------------------------------
 // Equality
 //------------------------------------------------------------------------
 
-bool FLTrace::operator==( const FLTrace &other )
+bool FLTrace::operator==( const FLTrace &other ) const
 {
-  return ( pc == other.pc ) && ( waddr == other.waddr ) &&
-         ( wdata == other.wdata ) && ( wen == other.wen );
+  if ( pc != other.pc || trap != other.trap )
+    return false;
+  if ( trap )
+    return cause == other.cause;
+  return wen == other.wen &&
+         ( !wen || ( waddr == other.waddr && wdata == other.wdata ) );
 }
 
-bool FLTrace::operator!=( const FLTrace &other )
+bool FLTrace::operator!=( const FLTrace &other ) const
 {
   return !( *this == other );
 }
@@ -54,7 +64,10 @@ bool FLTrace::operator!=( const FLTrace &other )
 std::string FLTrace::str() const
 {
   std::string str_rep = std::format( "0x{:08x}: ", pc );
-  if ( wen ) {
+  if ( trap ) {
+    str_rep += std::format( "trap cause=0x{:08x}", cause );
+  }
+  else if ( wen ) {
     str_rep += std::format( "0x{:08x} -> R[{}]", wdata, waddr );
   }
   return str_rep;
@@ -82,6 +95,9 @@ std::ostream &operator<<( std::ostream &out, const FLTrace &trace )
 
 void FLTrace::vrep( uint32_t *vstruct )
 {
+  if ( trap )
+    throw std::invalid_argument(
+        "Legacy Verilog retirement trace cannot represent a trap" );
   vstruct[0] = pc;
   vstruct[1] = wdata;
   vstruct[2] = waddr | ( (uint32_t) ( wen ) << 5 );

@@ -75,3 +75,13 @@ uint32_t FLInst::imm_is() const
 {
   return get_imm_is( binary );
 }
+
+uint32_t FLInst::csr_addr() const
+{
+  return get_csr( binary );
+}
+
+uint32_t FLInst::uimm() const
+{
+  return get_uimm( binary );
+}

@@ -30,6 +30,7 @@ void FLProc::reset()
 {
   pc = 0x000;
   mem.clear();
+  csrs = MachineCsrs{};  // resets all CSRs to defaults
 }
 
 //------------------------------------------------------------------------
@@ -46,13 +47,82 @@ void FLProc::init( uint32_t addr, std::string assembly )
 }
 
 //------------------------------------------------------------------------
+// Read CSR registers
+//------------------------------------------------------------------------
+
+bool FLProc::has_csr( uint32_t addr ) const
+{
+  switch ( addr ) {
+    case 0x300: case 0x304: case 0x305: case 0x340:
+    case 0x341: case 0x342: case 0x343: case 0x344:
+      return true;
+    default:
+      return false;
+  }
+}
+
+uint32_t FLProc::read_csr( uint32_t addr )
+{
+  switch ( addr ) {
+    case 0x300: return csrs.mstatus;
+    case 0x304: return csrs.mie;
+    case 0x305: return csrs.mtvec;
+    case 0x340: return csrs.mscratch;
+    case 0x341: return csrs.mepc;
+    case 0x342: return csrs.mcause;
+    case 0x343: return csrs.mtval;
+    case 0x344: return 0;  // mip, no timer yet
+    default:    return 0;
+  }
+}
+
+void FLProc::write_csr( uint32_t addr, uint32_t val )
+{
+  switch ( addr ) {
+    case 0x300:
+      csrs.mstatus = ( val & 0x00000088 ) | 0x00001800;
+      break;
+    case 0x304:
+      csrs.mie = val & 0x00000080;
+      break;
+    case 0x305:
+      csrs.mtvec = val & 0xFFFFFFFC;
+      break;
+    case 0x340: csrs.mscratch = val; break;
+    case 0x341: csrs.mepc     = val & 0xFFFFFFFC; break;
+    case 0x342: csrs.mcause   = val; break;
+    case 0x343: csrs.mtval    = val; break;
+    case 0x344: break;  // mip exists, but all pending bits are read-only zero
+    default:    break;
+  }
+}
+
+//------------------------------------------------------------------------
+// Synchronous machine-mode trap entry
+//------------------------------------------------------------------------
+
+FLTrace FLProc::take_trap( uint32_t cause, uint32_t tval )
+{
+  uint32_t inst_pc = pc;
+  uint32_t old_mie = ( csrs.mstatus >> 3 ) & 1;
+  csrs.mepc       = inst_pc;
+  csrs.mcause     = cause;
+  csrs.mtval      = tval;
+  csrs.mstatus   = ( csrs.mstatus & ~0x00000088 )
+                 | ( old_mie << 7 ) | 0x00001800;
+  pc = csrs.mtvec & 0xFFFFFFFC;
+  return FLTrace( inst_pc, true, cause );
+}
+
+//------------------------------------------------------------------------
 // Execution Step
 //------------------------------------------------------------------------
 
 FLTrace FLProc::step()
 {
   // Fetch the instruction
-  FLInst      inst( mem[pc] );
+  uint32_t    binary = mem[pc];
+  FLInst      inst( binary );
   inst_name_t inst_name = inst.name();
   uint32_t    inst_pc   = pc;
 
@@ -463,20 +533,16 @@ FLTrace FLProc::step()
       // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       // ecall
       // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      // NOP
 
     case ECALL:
-      throw std::invalid_argument(
-          "No surrounding instruction environment" );
+      return take_trap( 11 );
 
       // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       // ebreak
       // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      // NOP
 
     case EBREAK:
-      throw std::invalid_argument(
-          "No surrounding debugging environment: '{}'" );
+      return take_trap( 3 );
 
       //------------------------------------------------------------------
       // RV32M
@@ -601,6 +667,61 @@ FLTrace FLProc::step()
       pc = pc + 4;
       return FLTrace( inst_pc, inst.rd(), regs[inst.rd()],
                       inst.rd() != 0 );
+        
+      //------------------------------------------------------------------
+      // Machine return and Zicsr
+      //------------------------------------------------------------------
+      // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      // mret
+      // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+    case MRET: {
+        uint32_t old_mpie = ( csrs.mstatus >> 7 ) & 1;
+        csrs.mstatus = ( csrs.mstatus & ~0x00000088 )
+                    | ( old_mpie ? 0x8 : 0 )
+                    | 0x00000080
+                    | 0x00001800;
+        pc = csrs.mepc;
+        return FLTrace( inst_pc, 0, 0, false );
+      }
+
+      // CSR operations capture the source before writing rd, including
+      // when rd == rs1. A zero source field suppresses set/clear writes;
+      // a nonzero register containing zero still performs a CSR write.
+    case CSRRW:
+    case CSRRS:
+    case CSRRC:
+    case CSRRWI:
+    case CSRRSI:
+    case CSRRCI: {
+      uint32_t addr = inst.csr_addr();
+      bool immediate = inst_name == CSRRWI || inst_name == CSRRSI ||
+                       inst_name == CSRRCI;
+      bool exchange = inst_name == CSRRW || inst_name == CSRRWI;
+      bool write = exchange || inst.rs1() != 0;
+
+      // Check legality even when reads or writes are suppressed, before
+      // modifying any destination register or CSR.
+      if ( !has_csr( addr ) || ( write && ( addr >> 10 ) == 3 ) )
+        return take_trap( 2, binary );
+
+      uint32_t source = immediate ? inst.uimm() : regs[inst.rs1()];
+      uint32_t old_val = ( exchange && inst.rd() == 0 )
+                           ? 0 : read_csr( addr );
+      if ( write ) {
+        uint32_t new_val = source;
+        if ( inst_name == CSRRS || inst_name == CSRRSI )
+          new_val = old_val | source;
+        else if ( inst_name == CSRRC || inst_name == CSRRCI )
+          new_val = old_val & ~source;
+        write_csr( addr, new_val );
+      }
+      if ( inst.rd() != 0 )
+        regs[inst.rd()] = old_val;
+      pc += 4;
+      return FLTrace( inst_pc, inst.rd(), regs[inst.rd()],
+                      inst.rd() != 0 );
+    }
 
     default:
       std::string excp =

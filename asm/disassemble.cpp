@@ -26,7 +26,8 @@ std::map<std::string, std::function<std::string( uint32_t )>>
         { "imm_s", get_imm_s_id },   { "imm_b", get_imm_b_id },
         { "imm_u", get_imm_u_id },   { "imm_j", get_imm_j_id },
         { "imm_is", get_imm_is_id }, { "pred", get_pred_id },
-        { "succ", get_succ_id } };
+        { "succ", get_succ_id },     { "csr", get_csr_id },
+        { "uimm", get_uimm_id } };
 
 std::map<std::string, std::function<std::string( uint32_t, uint32_t )>>
     disasm_pc_field_map = { { "addr_b", get_addr_b_id },
@@ -61,6 +62,7 @@ const char* disassemble( const uint32_t* vbinary, const uint32_t* vpc )
   // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
   instruction = spec->assembly;
+  std::size_t field_pos = spec_tokens[0].length();
 
   for ( std::size_t i = 1; i < spec_tokens.size(); i++ ) {
     std::string spec_token = spec_tokens[i];
@@ -72,8 +74,10 @@ const char* disassemble( const uint32_t* vbinary, const uint32_t* vpc )
       replacement = disasm_field_map[spec_token]( binary );
     }
 
-    instruction.replace( instruction.find( spec_token ),
-                         spec_token.length(), replacement );
+    // Search only the remaining operands: "csr" also occurs in "csrrw".
+    field_pos = instruction.find( spec_token, field_pos );
+    instruction.replace( field_pos, spec_token.length(), replacement );
+    field_pos += replacement.length();
   }
 
   return instruction.c_str();
