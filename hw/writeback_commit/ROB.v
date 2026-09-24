@@ -52,9 +52,17 @@ module ROB #(
   logic                    bypass;
 
   always_ff @( posedge clk ) begin
-    if( rst )
+    if( rst ) begin
+`ifdef FORMAL
+      // Jasper does not accept the nested default assignment pattern below.
+      // The message field is immaterial while val is clear, so a zeroed entry
+      // is an equivalent formal reset state.
+      for( int i = 0; i < p_depth; i = i + 1 )
+        entries[i] <= '0;
+`else
       entries <= '{default: '{msg: 'x, val: 1'b0}};
-    else begin
+`endif
+    end else begin
       if( ins_en & !bypass ) begin
         entries[ins_idx] <= '{
           msg: ins_msg,

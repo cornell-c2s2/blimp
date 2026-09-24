@@ -15,6 +15,8 @@ The assertions prove that:
 Run the proof from this directory:
 
 ```sh
+source /classes/c2s2/setup-c2s2.sh
+module load cadence
 jaspergold -batch -tcl run.tcl
 ```
 
