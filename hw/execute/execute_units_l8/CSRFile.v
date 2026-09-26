@@ -3,17 +3,20 @@
 //========================================================================
 // Author: Emily Lan
 //========================================================================
-// Stores all control and status registers (CSRs)
+// Stores all control and status registers (CSRs). Reads are combinational
+// through CSRIntf; writes are applied at commit through CSRNotif.
 
 `ifndef HW_EXECUTE_STATE_CSRFILE_V
 `define HW_EXECUTE_STATE_CSRFILE_V
 
 `include "intf/CSRIntf.v"
+`include "intf/CSRNotif.v"
 
 module CSRFile (
     input  logic clk,
     input  logic rst,
-    CSRIntf.F_intf csr
+    CSRIntf.F_intf csr,
+    CSRNotif.sub   csr_notif
 );
 
     // CSR registers
@@ -21,10 +24,6 @@ module CSRFile (
     logic [4:0] fflags;
     logic [2:0] frm;
     assign fcsr = {24'b0, frm, fflags};
-
-
-    // Rdy always high
-    assign csr.rdy = 1'b1;
 
     // Read logic
     always_comb begin
@@ -42,39 +41,39 @@ module CSRFile (
             fflags <= 5'b0;
             frm    <= 3'b0;
         end
-        else if (csr.val && csr.rdy) begin
-            case (csr.cmd)
+        else if (csr_notif.val) begin
+            case (csr_notif.cmd)
                 3'b001: begin // write (CSRRW)
-                    case (csr.addr)
-                    12'h001: fflags <= csr.wdata[4:0];
-                    12'h002: frm    <= csr.wdata[2:0];
+                    case (csr_notif.addr)
+                    12'h001: fflags <= csr_notif.wdata[4:0];
+                    12'h002: frm    <= csr_notif.wdata[2:0];
                     12'h003: begin
-                        fflags <= csr.wdata[4:0];
-                        frm    <= csr.wdata[7:5];
+                        fflags <= csr_notif.wdata[4:0];
+                        frm    <= csr_notif.wdata[7:5];
                     end
                     default: ;
                     endcase
                 end
 
                 3'b010: begin // set (CSRRS)
-                    case (csr.addr)
-                    12'h001: fflags <= fflags | csr.wdata[4:0];
-                    12'h002: frm    <= frm    | csr.wdata[2:0];
+                    case (csr_notif.addr)
+                    12'h001: fflags <= fflags | csr_notif.wdata[4:0];
+                    12'h002: frm    <= frm    | csr_notif.wdata[2:0];
                     12'h003: begin
-                        fflags <= fflags | csr.wdata[4:0];
-                        frm    <= frm    | csr.wdata[7:5];
+                        fflags <= fflags | csr_notif.wdata[4:0];
+                        frm    <= frm    | csr_notif.wdata[7:5];
                     end
                     default: ;
                     endcase
                 end
 
                 3'b011: begin // clear (CSRRC)
-                    case (csr.addr)
-                    12'h001: fflags <= fflags & ~csr.wdata[4:0];
-                    12'h002: frm    <= frm    & ~csr.wdata[2:0];
+                    case (csr_notif.addr)
+                    12'h001: fflags <= fflags & ~csr_notif.wdata[4:0];
+                    12'h002: frm    <= frm    & ~csr_notif.wdata[2:0];
                     12'h003: begin
-                        fflags <= fflags & ~csr.wdata[4:0];
-                        frm    <= frm    & ~csr.wdata[7:5];
+                        fflags <= fflags & ~csr_notif.wdata[4:0];
+                        frm    <= frm    & ~csr_notif.wdata[7:5];
                     end
                     default: ;
                     endcase
@@ -85,6 +84,9 @@ module CSRFile (
         end
     end
 
+    // Unused signals: the implemented CSRs use at most wdata[7:0]
+    logic [23:0] unused_csr_notif_wdata;
+    assign unused_csr_notif_wdata = csr_notif.wdata[31:8];
 
 endmodule
 

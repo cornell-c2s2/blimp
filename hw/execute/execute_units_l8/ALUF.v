@@ -365,6 +365,10 @@ module ALUF (
   assign W.preg    = D_reg.preg;
   assign W.ppreg   = D_reg.ppreg;
 
+  assign W.csr_cmd   = 3'b0;
+  assign W.csr_addr  = 12'b0;
+  assign W.csr_wdata = 32'b0;
+
   // --------------------------------------------------------------------
   // Trace utilities
   // --------------------------------------------------------------------

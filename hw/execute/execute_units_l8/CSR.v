@@ -2,7 +2,10 @@
 // CSR.v
 //========================================================================
 // Execute unit for CSR instructions (CSRRW, CSRRS, CSRRC, etc.)
-// Uses CSRIntf for communication with CSRFile
+// Reads the old CSR value through CSRIntf and forwards it to rd. The CSR
+// update itself (cmd, addr, wdata) rides X__WIntf into the ROB and is
+// applied at commit through CSRNotif. Decode guarantees that a CSR
+// instruction only issues once every older instruction has committed.
 //
 // Author: Emily Lan
 // Last updated: 11/04/25
@@ -103,22 +106,26 @@ typedef struct packed {
   logic [2:0] csr_cmd;
   always_comb begin
     unique case (D_reg.uop)
-      OP_CSRRW: csr_cmd = 3'b001; 
-      OP_CSRRS: csr_cmd = 3'b010; 
-      OP_CSRRC: csr_cmd = 3'b011; 
-      default:  csr_cmd = 3'b000; // read
+      OP_CSRRW, OP_CSRRWI: csr_cmd = 3'b001; // write
+      OP_CSRRS, OP_CSRRSI: csr_cmd = 3'b010; // set
+      OP_CSRRC, OP_CSRRCI: csr_cmd = 3'b011; // clear
+      default:             csr_cmd = 3'b000; // none
     endcase
   end
 
 //----------------------------------------------------------------------
-// CSR Request to CSR File
+// Read the old CSR value
 //----------------------------------------------------------------------
 
+  assign CSR.addr = D_reg.op2[11:0]; // CSR address
 
-  assign CSR.val   = D_reg.val && W.rdy;
-  assign CSR.addr  = D_reg.op2[11:0]; // CSR address
-  assign CSR.wdata = D_reg.op1;       // Source register data
-  assign CSR.cmd   = csr_cmd;
+//----------------------------------------------------------------------
+// CSR update to apply at commit
+//----------------------------------------------------------------------
+
+  assign W.csr_cmd   = csr_cmd;
+  assign W.csr_addr  = D_reg.op2[11:0];
+  assign W.csr_wdata = D_reg.op1; // rs1 value or zimm
 
 //----------------------------------------------------------------------
 // Assign Remaining Signals
@@ -145,13 +152,17 @@ typedef struct packed {
 //----------------------------------------------------------------------
 
 `ifndef SYNTHESIS
-  function string trace (int trace_level);
+  function string trace (
+    // verilator lint_off UNUSEDSIGNAL
+    int trace_level
+    // verilator lint_on UNUSEDSIGNAL
+  );
     if (W.val & W.rdy)
       trace = $sformatf("%h: %8s CSR[%03h]=%h -> %h",
                         W.seq_num,
                         D_reg.uop.name(),
                         CSR.addr,
-                        CSR.wdata,
+                        D_reg.op1,
                         CSR.rdata);
     else
       trace = " ";

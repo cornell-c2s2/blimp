@@ -1,182 +1,397 @@
-# Trap Design: ECALL / EBREAK / MRET (early exceptions in decode)
+# Trap Design: ECALL / EBREAK / MRET (detected in decode, taken at commit)
 
-Status: proposed design. No trap RTL has been written. This builds on [CSR_DESIGN.md](CSR_DESIGN.md), whose modules are implemented (not yet integrated into a top). It provides the front and back
-barriers, the `X__WIntf` `csr_*` fields carried in the ROB entry, `CSRNotif`, the standalone `CSRFile`, and the CSR pipe.
+Status: final proposed design. No trap RTL has been written. This document is the module-level spec.
 
-Scope: machine-mode-only handling of `ECALL`, `EBREAK` and `MRET`, where the exception is **detected and initiated in decode** ("early exception commit").
-Out of scope: illegal-instruction exceptions (decode keeps stalling on unsupported encodings, as it does today), `WFI`, `FENCE.I`, nested traps, interrupts, and
-exceptions raised at ROB commit ("late commit": memory faults, etc.). Section 9 describes what late commit would change.
+Builds on [CSR_DESIGN.md](CSR_DESIGN.md), whose modules are implemented (not yet integrated into a top): the front and back barriers in decode, the per-instruction
+`csr_*` fields on `X__WIntf` and in the ROB entry, `CSRNotif`, the standalone `CSRFile`, and the CSR pipe. This design also revises some of those modules; the
+revisions are listed in [CSR_DESIGN.md](CSR_DESIGN.md) section 15.
 
-## 1. Idea in one paragraph
+Scope: machine-mode-only `ECALL`, `EBREAK` and `MRET`, with the exception **detected in decode** ("early commit"). Out of scope: top-level integration, all tests,
+exceptions detected after issue ("late commit", section 12 describes the path), illegal-instruction exceptions, interrupts, nested traps, a nonzero `mtval`, and
+trap support in the FL model.
 
-Decode recognizes a trap op and treats it exactly like a CSR instruction: it has the **same front and back barriers** (it waits in decode until every
-older instruction has committed, and nothing younger enters until it commits). It issues to the CSR pipe, carries its request in the `X__WIntf` `csr_*`
-fields into the ROB entry, and its effects are applied at commit through `CSRNotif`, using new `cmd` encodings that write several CSRs in parallel.
-The **redirect** fires from decode's existing `squash_pub` at issue, after the drain, with the target read from `mtvec` or `mepc`. Decode gets no CSR
-write port and `CSRFile` keeps a single writer.
+## 1. The rule
 
-## 2. Current state
+A trap is **detected** where it is known, and **taken** at commit.
 
-- [ISA.v](defs/ISA.v) defines `RVI_INST_ECALL` and `RVI_INST_EBREAK` (exact encodings). **`MRET` has no encoding** (`0x30200073`).
-- [InstDecoder.v](hw/decode_issue/InstDecoder.v) does not decode any of them. They fall to `default`, which sets `val = n` and everything else to `'x`. With `val = n`,
-  `decoder_val` stays 0, `F.rdy` never asserts, and decode/fetch **stall** on them. This design leaves that behaviour as is for every encoding other than the three trap ops.
-- The top levels say `RV32IM (no exceptions)`. There are no `mstatus`, `mtvec`, `mepc`, `mcause`, `mtval` or `mscratch` CSRs.
-- Decode already has a redirect mechanism (`squash_pub`, `squash_sent`) used for `JAL`/`JALR`
-  ([DecodeIssueUnitL6.v](hw/decode_issue/decode_issue_unit_variants/DecodeIssueUnitL6.v)).
+- **Detect (early):** decode recognizes `ECALL`/`EBREAK`/`MRET` and gives them the CSR barriers: the op waits until every older instruction has committed, and
+  nothing younger enters until it commits. The CSR pipe turns the uop into a per-instruction action: an exception (`exc_val`, `exc_cause`) for `ECALL`/`EBREAK`,
+  or a CSR command (`CSR_CMD_MRET`) for `MRET`.
+- **Take (at commit, for every trap source):** the action rides `X__WIntf` into the ROB entry. When the instruction commits, the commit unit forwards it on
+  `CSRNotif`. `CSRFile` writes the trap CSRs and publishes a `SquashNotif` that redirects fetch to `mtvec` (exception) or `mepc` (`MRET`).
+
+Nothing on the take path depends on where the exception was detected. Late commit only adds more producers of `exc_val` (section 12).
+
+## 2. Background
+
+- [ISA.v](defs/ISA.v) defines `RVI_INST_ECALL` and `RVI_INST_EBREAK` (exact encodings). There is no `MRET` encoding (`0x30200073`).
+- [InstDecoder.v](hw/decode_issue/InstDecoder.v) does not decode them. They fall to the `default` row (`val = n`), so decode stalls on them forever.
+- `CSRFile` holds only `fflags`, `frm` and `fcsr`. There are no `mstatus`, `mtvec`, `mepc`, `mcause`, `mtval` or `mscratch` CSRs.
+- Squash publishers today are decode (`JAL`/`JALR`) and `ControlFlowUnitL6` (taken branches). `SquashUnitL1` arbitrates any number of publishers (a binary tree
+  of `SquashUnitL1Helper`s, parameter `p_num_arb`) and grants the oldest by `SeqAge.is_older`.
+- On a squash, `FetchUnitL3` sends the request to `squash.target` in the same cycle, holds `D.val` low that cycle, and drops every older in-flight or buffered
+  response (`num_to_squash`, `should_drop`). `SeqNumGenL3` frees every number younger than `squash.seq_num` and rewinds its head to `squash.seq_num + 1`.
+- The assembler has `ecall`/`ebreak` but not `mret`. The FL model throws on `ECALL`/`EBREAK`.
 
 ## 3. Trap semantics (M-mode only, per the RISC-V privileged spec)
 
-CSRs added to `CSRFile`: `mstatus` (0x300; fields `MIE` bit 3, `MPIE` bit 7, `MPP` bits 12:11), `mscratch` (0x340), `mtvec` (0x305), `mepc` (0x341), `mcause` (0x342),
-`mtval` (0x343).
-
 | Op | `mepc` | `mcause` | `mtval` | `mstatus` | Redirect target |
 |---|---|---|---|---|---|
-| `ECALL` | pc of the instruction | 11 (ecall from M-mode) | 0 | `MPIE <- MIE; MIE <- 0; MPP <- M` | `mtvec` base |
-| `EBREAK` | pc of the instruction | 3 (breakpoint) | 0 | as `ECALL` | `mtvec` base |
-| `MRET` | unchanged | unchanged | unchanged | `MIE <- MPIE; MPIE <- 1; MPP <- M` | `mepc` |
+| `ECALL` | pc of the instruction | 11 (environment call from M-mode) | 0 | `MPIE <- MIE; MIE <- 0` | `{mtvec[31:2], 2'b00}` |
+| `EBREAK` | pc of the instruction | 3 (breakpoint) | 0 | as `ECALL` | `{mtvec[31:2], 2'b00}` |
+| `MRET` | unchanged | unchanged | unchanged | `MIE <- MPIE; MPIE <- 1` | `mepc` |
 
-Notes:
+- `MPP` (bits 12:11) is hardwired to `2'b11` (M). With M-mode only, the spec's `MPP` updates are no-ops.
+- `mtvec` is direct mode only: `mtvec[1:0]` (MODE) is hardwired to 0.
+- `mepc[1:0]` is hardwired to 0 (32-bit instruction alignment), on every write path.
+- `mtval` is written as 0 on every trap. The spec allows this for `ECALL` and `EBREAK`.
+- `mscratch` is a plain read/write CSR with no trap behaviour, so handlers can save a register.
+- The trapping instruction itself commits through the ROB and appears in the commit trace with `wen = 0`. The handler's `mepc + 4` return is software's job.
 
-- `mtvec`: direct mode only. Target is `{mtvec[31:2], 2'b00}`. Vectored mode only affects interrupts.
-- `mepc[1:0]` is hardwired to 0 (32-bit instruction alignment), and the `MRET` target uses it as stored.
-- With M-mode only, `MPP` is effectively always `M`.
-- `mtval` is always written as 0 on a trap (the spec allows this for `ECALL` and `EBREAK`).
-- `mscratch` is a plain 32-bit read/write CSR with no trap behaviour. It is written by the ordinary CSR instructions through the existing `CSRNotif` write/set/clear path, so handlers
-  can save a register. It needs no trap logic.
+## 4. Design decisions
 
-## 4. Decode changes
+| # | Decision | Why |
+|---|---|---|
+| 1 | The trap is **taken at commit**, not in decode | One take path for early and late exceptions. Decode needs no CSR state, no redirect target and no new redirect logic. Under the barriers the trap op is the only instruction past decode when it commits, so the squash only has to reach units that already handle squashes (fetch, decode, `SeqNumGenL3`). Cost: the redirect fires at td+2 instead of td. |
+| 2 | **`CSRFile` publishes the squash** | All privileged behaviour (CSR state, trap entry, return, redirect targets, later vectored mode and interrupts) stays in one module. The commit unit stays generic: at commit it forwards the instruction's action. No CSRFile-to-commit read interface is needed. |
+| 3 | Exceptions are **per-instruction data** (`exc_val`, `exc_cause`) on `X__WIntf` and in the ROB entry | Any execute unit can raise one later, with its own cause. It needs no age logic and survives squashes naturally, and it matches how the `csr_*` fields already travel ([CSR_DESIGN.md](CSR_DESIGN.md) decision 5). Encoding traps as `csr_cmd` values would leave one spare code and no room for a cause or `mtval`. |
+| 4 | **`MRET` is a CSR command** (`CSR_CMD_MRET`), not an exception | It is a return: no cause, and it does not write `mepc`/`mcause`/`mtval`. |
+| 5 | **One uop per instruction** (`OP_ECALL`, `OP_EBREAK`, `OP_MRET`) | The decoder table stays uniform, and the CSR pipe maps uop to action exactly as it maps `OP_CSRRW` to write. `num_ops` goes from 44 to 47; the enum stays 6 bits. |
+| 6 | **`jal` stays 2 bits** (JAL/JALR only) | Decode does not redirect for traps. |
+| 7 | Trap ops get **both barriers**, through the same decoder bit as CSR ops, renamed `is_csr` -> `serialize` | One rule for every serializing op. The back barrier is not strictly needed for precision once the trap is taken at commit, but dropping it breaks "the next commit is the serializing op's own" (the 1-bit `serial_in_flight`). Traps are rare, so the drain cost is accepted. |
+| 8 | **`exc_tval` is deferred** | Every trap in scope writes `mtval = 0`. The field is added with the "added in vN" convention when its first producer exists (late load/store faults, illegal instructions). |
+| 9 | The squash is **combinational** from ROB dequeue, like `CSRNotif` | It keeps the proven td+2 ordering: the squash, the CSR writes and the barrier release fall in the same cycle. |
+| 10 | **Named constants** for CSR commands and exception causes, in [UArch.v](defs/UArch.v) | Three modules (CSR pipe, commit unit, `CSRFile`) share the encodings; magic numbers in each would drift. |
 
-1. **Encodings.** Add `RVI_INST_MRET` to [ISA.v](defs/ISA.v) (naming to match the file's convention).
-2. **New uops.** `OP_ECALL`, `OP_EBREAK`, `OP_MRET` in [UArch.v](defs/UArch.v). `num_ops` is 44 and full, so bump it to 47 (the enum stays 6 bits; the `rv_op_vec` width grows) and add the
-   matching `_VEC` parameters. `InstRouter.v` also needs an entry for each new uop (see [CSR_DESIGN.md](CSR_DESIGN.md) section 6.11).
-3. **`InstDecoder` entries** for `ECALL`, `EBREAK`, `MRET`: `val = y`, `raddr0 = raddr1 = rx`, `waddr = rx`, `wen = n`, `op1_sel = op1_rf`, `op2_sel = op2_rf`, so they never stall on operands and
-   allocate no register. Reading `x0` makes `op1 = op2 = 0`, which is exactly the `mtval` operand and the (unused) CSR address they need. **`is_csr = 1`**, so the barriers apply to them exactly
-   as to CSR instructions.
-4. **Everything else is unchanged.** Unsupported encodings (illegal instructions, and also `WFI` and `FENCE.I`) keep the current `default` row and still stall decode. No `OP_ILLEGAL` uop is added.
-5. **Barriers.** No new logic. `csr_class` is built from the `is_csr` control column (`F_reg.val & decoder_val & decoder_is_csr`), so the front barrier (`csr_active` and the `F.rdy` gate) and the back
-   barrier (the `drained` term on the router `val`) in `DecodeIssueUnitL6` already apply.
-6. **Redirect.** Widen the `jal` selector from 2 to 3 bits: `0` none, `1` `JAL`, `2` `JALR`, `3` trap (target `mtvec` base), `4` `MRET` (target `mepc`). `squash_pub.val` keeps its `JAL`/`JALR`
-   condition, and for codes `3` and `4` it fires on `F_reg.val & drained & !stall_pending & !squash_sent` (the same shape, reusing `squash_sent`). The target mux gains the two new arms.
-   **The redirect must not be derived from `X_xfer`.** `X_xfer` depends on `should_squash`, which depends on `squash_sub`, which is driven from `squash_pub`; using it would create a combinational loop.
-7. **New decode input:** a `CSRTrapIntf` (below) carrying `mtvec` and `mepc` from `CSRFile`.
+## 5. Behaviour and timeline
 
-## 5. Execute, commit and CSRFile changes
+```
+ Fetch -> [Decode L6] --(D__XIntf)--> [CSR pipe] --(X__WIntf: exc_*, csr_*)--> [Commit unit L4]
+   ^         |  serialize: drain wait        |  uop -> exc / csr_cmd                 | ROB entry holds exc_*, csr_*
+   |         |  serial_in_flight              |                                       | at dequeue, if exc_val or csr_cmd != 0:
+   |         +<------------------------------ CommitNotif ---------------------------+--> CSRNotif --> [CSRFile]
+   |                                                                                                        | trap / return:
+   +<-------- SquashUnitL1 <------------------------------------------------ SquashNotif (target, seq_num) ---+
+```
 
-- **New interface `CSRTrapIntf`** (`intf/CSRTrapIntf.v`, name provisional). It carries the two read-only values decode needs for the redirect, `mtvec[31:0]` and `mepc[31:0]`, with side-named modports:
-  `F_intf` (`CSRFile` side, outputs) and `D_intf` (decode side, inputs), following the convention of `CSRIntf`/`D__XIntf`. It is a separate interface from `CSRIntf`, which stays the read port
-  used by the CSR pipe.
-- **CSR pipe.** Its subset includes the three trap uops. The only change to `CSR.v` is three new arms in its `csr_cmd` `case`, mapping the trap uops to `100`-`110`. Everything else already works:
-  `W.wen = D_reg.val & (waddr != 0)` is 0 because decode gives `waddr = x0`, `W.csr_addr = op2[11:0]` is 0 because decode reads `x0` for `op2`, and `W.csr_wdata = op1` is 0. The CSR read result on
-  `W.wdata` is unused (`wen = 0`). `W.pc` already carries the instruction's pc.
-- **`csr_cmd` encodings** (using the space reserved in [CSR_DESIGN.md](CSR_DESIGN.md)): `100` `ECALL`, `101` `EBREAK`, `110` `MRET`. `111` stays unused.
-- **Commit unit (`WritebackCommitUnitL4`).** No new storage: the `pc` is already in the ROB entry. `CSRNotif` gains a `pc` field (added in the repo's "added in vN" style), driven from `rob_output.pc`.
-- **`CSRFile`:**
-  - Adds `mstatus`, `mscratch`, `mtvec`, `mepc`, `mcause` and `mtval`. `mscratch` (and the other CSRs, for ordinary CSR instructions) use the existing write/set/clear path.
-  - On a trap `cmd`, in one cycle: writes `mepc <- pc` (not for `MRET`), `mcause <- f(cmd)` (11 for `ECALL`, 3 for `EBREAK`, not for `MRET`), `mtval <- 0`, and updates `mstatus` as in section 3. The cause
-    code is derived from `cmd`, so it does not have to travel with the request.
-  - Drives `CSRTrapIntf` with the current `mtvec` and `mepc`.
-- The ROB, `CommitNotif`, `SeqArb` and `ExQueue` behave as in [CSR_DESIGN.md](CSR_DESIGN.md); no further changes.
+Life of an `ECALL`:
 
-## 6. Timeline: `ECALL`
+| Cycle | Event |
+|---|---|
+| <= td | `ECALL` is in `F_reg`. `serial_in_decode` holds `F.rdy` low; the back barrier holds issue until `drained`. While waiting it is squashable by `should_squash`. |
+| td | Issues to the CSR pipe (`X_xfer`). `serial_in_flight` is set. |
+| td+1 | The CSR pipe drives `W` with `exc_val = 1`, `exc_cause = EXC_ECALL_M`, `wen = 0`. The commit unit latches it into `X_reg`. |
+| td+2 | ROB insert and dequeue in the same cycle (bypass: it is the oldest), so `commit.val`. `CSRNotif` fires. `CSRFile` publishes the squash (target `{mtvec[31:2], 2'b00}`, `seq_num` of the `ECALL`). Fetch sends the handler request; `SeqNumGenL3` rewinds to `seq_num + 1`. `serial_in_flight` clears. At the clock edge `mepc`, `mcause`, `mtval` and `mstatus` update. |
+| td+3 | `F.rdy` can reopen. Fetch drops stale responses until `num_to_squash` reaches 0. |
+| later | The first handler instruction reaches decode and sees the updated CSRs. |
 
-1. **t0..td.** `ECALL` is in `F_reg`. `csr_class` is true, so `F.rdy` is low, and the back barrier holds it until every older instruction has committed. Fetch keeps prefetching sequential
-   instructions until its 8-entry response FIFO and in-flight limit are full.
-2. **td (drained).** `ECALL` issues to the CSR pipe (`X_xfer`) and `csr_active` is set. In the same cycle (or earlier, if the CSR pipe is not ready, since `squash_sent` makes it fire only once) `squash_pub`
-   fires with target `mtvec` base. Fetch redirects. `FetchUnitL3` adds every outstanding request, including the FIFO entries, to `num_to_squash` and drops them at one per cycle; new requests are limited by
-   `num_in_flight + num_to_squash < p_max_in_flight`, and no instruction is delivered to decode until the stale ones are gone. `should_squash` for the `ECALL` itself stays false: a squash only affects
-   instructions younger than its `seq_num`.
-3. **td+1.** The CSR pipe drives `W` (no `rd` write) with `csr_cmd = ECALL`, and the commit unit latches the result and its `csr_*` fields into `X_reg`.
-4. **td+2.** The instruction is inserted from `X_reg` into the ROB and, being the oldest, dequeued in the same cycle (bypass). `CSRNotif` fires and `CSRFile` writes `mepc`, `mcause`, `mtval` and
-   `mstatus`. `csr_active` clears in the same cycle.
-5. **td+3.** `F.rdy` reopens. The first handler instruction is in `F_reg` at `td+4` at the earliest and sees the updated CSRs. It usually arrives later: the stale entries drop at one per cycle (up to 8 if
-   the FIFO filled while waiting) before the first handler instruction can be delivered, so the redirect overlaps the commit only partially. See section 10.
+`EBREAK` differs only in `mcause`. `MRET` is identical except that its target is `mepc` and only `mstatus` changes.
 
-`MRET` is the same with `mepc` as the redirect target and only `mstatus` written. `EBREAK` differs from `ECALL` only in `mcause`.
+## 6. Component specifications
 
-## 7. Why this ordering is correct
+### 6.1 [UArch.v](defs/UArch.v)
 
-- **Precision.** Older instructions have all committed before the trap op issues (back barrier), and nothing younger has entered (front barrier). The trap's CSR writes land at commit, so they are
-  ordered after everything older.
-- **`mtvec`/`mepc` in decode are current.** Two independent reasons: the trap op issues only when everything older has committed, and any older CSR or trap op held `F.rdy` low until it committed, so it
-  could not even have reached decode before then. Only CSR-class ops write these CSRs, so the decode-time read is up to date.
-- **Wrong path.** The redirect fires only after the drain, when nothing older is unresolved, so a wrong-path trap op can never redirect or write. Before the drain the trap op just waits, and
-  `should_squash` kills it if an older branch turns out to be taken.
-- **Handlers see their own writes.** Decode is held until the writes commit (`csr_active`), so handler `csrr` instructions read the updated `mepc`/`mcause`/`mscratch`.
-- **ROB slot.** The trap op flows through the CSR pipe and inserts a normal ROB entry. If it did not, the ROB (indexed by `seq_num`, no gaps) would stall at its slot forever. The trapping
-  instruction therefore appears in the commit trace with `wen = 0`.
-- **1-bit `csr_active` is exact.** The argument in [CSR_DESIGN.md](CSR_DESIGN.md) ("Why the 1-bit clear is safe") applies unchanged, because the trap op has the same barriers.
+- New uops `OP_ECALL`, `OP_EBREAK`, `OP_MRET` in a `// System` group after the CSR ops, with matching `OP_ECALL_VEC`, `OP_EBREAK_VEC`, `OP_MRET_VEC`. `num_ops = 47`.
+- New constants, declared like the existing package parameters:
 
-## 8. Interactions with the CSR design
+  ```systemverilog
+  // CSR commands, applied at commit
+  parameter logic [2:0] CSR_CMD_NONE  = 3'd0;
+  parameter logic [2:0] CSR_CMD_WRITE = 3'd1;
+  parameter logic [2:0] CSR_CMD_SET   = 3'd2;
+  parameter logic [2:0] CSR_CMD_CLEAR = 3'd3;
+  parameter logic [2:0] CSR_CMD_MRET  = 3'd4; // 5-7 reserved
 
-- A trap op **is** a CSR op for the barriers: no additional serialization logic.
-- One writer and one interface: trap effects are new `cmd` values on the existing `CSRNotif`, not a second port.
-- **CSR access checks are not part of this design.** Trapping on an unimplemented CSR or a write to a read-only CSR would need an illegal-instruction path, which is out of scope. Reads of unknown
-  CSRs keep returning 0 and writes keep being ignored, as in [CSR_DESIGN.md](CSR_DESIGN.md).
+  // Exception causes (mcause code, interrupt bit clear)
+  parameter logic [4:0] EXC_BREAKPOINT = 5'd3;
+  parameter logic [4:0] EXC_ECALL_M    = 5'd11;
+  ```
 
-## 9. Moving to late exceptions (future)
+- The interfaces keep plain `logic [2:0]` / `logic [4:0]` fields and do not import the package, as today.
 
-What stays: the trap `cmd` encodings, `CSRNotif` (with `pc`), the `CSRFile` trap logic, the trap CSR set, `CSRTrapIntf`, and the `X__WIntf`/ROB `csr_*` fields.
+### 6.2 [ISA.v](defs/ISA.v)
 
-What changes:
+- Add under "System Calls": `` `define RVI_INST_MRET 32'b0011000_00010_00000_000_00000_1110011 ``. It is an exact encoding with funct3 `000`, so it cannot overlap the CSR
+  patterns.
 
-- Exceptions detected after issue (load/store faults, etc.) are reported per instruction from the execute units. The `csr_*` fields are the natural carrier: an execute unit that currently ties
-  them off could drive a trap `csr_cmd`. That needs a wider `cmd` (`100`-`110` are used, `111` is spare) and a way to carry `mtval`.
-- The trap is taken when that instruction reaches commit. The commit unit (or `CSRFile`) publishes the redirect as a `SquashNotif`; `SquashUnitL1` gains a third input.
-- **Squash has to reach everything past decode:** every execute pipe, the ROB, and `csr_active` must clear if a squash covers a CSR-class op. Today no unit past decode has a squash port, and
-  `RenameTable` has no rollback on squash. The 1-bit `csr_active` argument in [CSR_DESIGN.md](CSR_DESIGN.md) would also need revisiting, because a late exception can squash a CSR-class op that is
-  already in flight.
-- Decode-side trap detection then only marks the exception (or is removed), and the decode-time redirect goes away.
+### 6.3 [InstDecoder.v](hw/decode_issue/InstDecoder.v)
 
-## 10. Redirect latency (deferred)
+- Rename the `is_csr` output and column to `serialize` ("must be the only instruction in flight").
+- Three new rows. They read x0 (never stall on operands, both operands are 0), allocate no register, and do not redirect:
 
-**What the cost is.** The trap op waits in decode until everything older has committed (`td`), and only then fires the redirect. Meanwhile fetch has been running ahead down the sequential path, so its
-8-entry response FIFO and its in-flight requests fill with instructions that the trap makes stale. When the redirect fires, `FetchUnitL3` counts all of those into `num_to_squash` and drops them at one per
-cycle (`resp_pop`). It may send new requests as soon as `num_in_flight + num_to_squash < p_max_in_flight`, but `D.val` stays low until `num_to_squash == 0`, so no handler instruction reaches decode until
-the stale ones are gone. Decode itself is ready again at `td+3`. So the handler's first instruction reaches decode roughly `up to 8 cycles + any remaining memory latency` after `td`, which can be several
-cycles after decode could take it. The redirect overlaps the trap's commit only partially.
+  ```
+  `RVI_INST_ECALL:  cs( y, OP_ECALL,  j_n, rx, rx, rx, n, '0, op1_rf, op2_rf, op3_x, y );
+  `RVI_INST_EBREAK: cs( y, OP_EBREAK, j_n, rx, rx, rx, n, '0, op1_rf, op2_rf, op3_x, y );
+  `RVI_INST_MRET:   cs( y, OP_MRET,   j_n, rx, rx, rx, n, '0, op1_rf, op2_rf, op3_x, y );
+  ```
 
-**The alternative.** Fire the redirect as soon as the trap op is in `F_reg`, without waiting for `drained`, the way `JAL`/`JALR` already redirect today. The stale entries then drop while decode is
-still waiting for the drain, so the handler's first instruction would be waiting in the FIFO by `td+4`. The saving is up to the drop time (about 8 cycles) per trap, and only when the drain wait is long
-enough to hide it; if the trap op arrives with nothing older in flight there is nothing to hide. The change is one term: drop `drained` from the trap redirect condition. The issue, the barriers and the
-CSR writes are untouched.
+  `imm_sel = '0` (not `'x`) keeps `ImmGen` defined, as the `FENCE` row does.
+- `jal` is unchanged (2 bits).
 
-**Why it is deferred.** It is not unsafe by itself, but it removes the arguments that make the drained redirect obviously correct:
+### 6.4 [InstRouter.v](hw/decode_issue/InstRouter.v)
 
-- **Wrong path.** A trap op behind an unresolved older branch would redirect fetch before it is known to be on the correct path. Today this resolves the same way it does for `JAL`: the branch's squash
-  arrives in the same cycle (branches resolve one cycle after issue) and `SquashUnitL1` picks the older one. That relies on the same timing coincidence as the rest of the design (nothing past
-  decode is squashable). If an older squash ever arrived in a later cycle, fetch would be redirected twice; I expect the final target to be right because the older squash overrides, but it would then depend on
-  ordering details that the drained redirect avoids entirely.
-- **Late exceptions (future).** An older instruction that faults after the early redirect would have to override it, adding another ordering case.
-- **`mtvec`/`mepc` are still current** with an early redirect (an older CSR or trap op holds `F.rdy` low until it commits), so that is not a concern.
+- Three lines in the existing style for `OP_ECALL`, `OP_EBREAK` and `OP_MRET`.
 
-**Impact in practice.** Traps (`ECALL`, `EBREAK`) are rare, so the extra latency only matters for trap-heavy code. Keeping the redirect at issue matches the decision to treat trap ops like CSR ops with
-both barriers, for safety. Revisit with measurements if trap latency ever matters.
+### 6.5 [DecodeIssueUnitL6.v](hw/decode_issue/decode_issue_unit_variants/DecodeIssueUnitL6.v)
 
-## 11. Decisions recorded and remaining items
+- **No logic change.** The barriers apply to every row with `serialize = y`.
+- Renames: `decoder_is_csr` -> `decoder_serialize`, `csr_in_decode` -> `serial_in_decode`, `csr_in_flight` -> `serial_in_flight`. The comment block becomes
+  "Serialization barriers (CSR and trap instructions)".
 
-Decided:
+### 6.6 [X__WIntf.v](intf/X__WIntf.v)
 
-1. `mtval` is always 0.
-2. The trapping instruction commits through the ROB and appears in the commit trace (`wen = 0`). The FL model has no trap support, so trace-compare tests cannot cover traps yet.
-3. Only `ECALL`, `EBREAK` and `MRET` are added. `WFI` and `FENCE.I` are not.
-4. `mscratch` is added as a plain read/write CSR.
-5. Illegal instructions do not raise exceptions; decode keeps stalling on them as it does today. No `OP_ILLEGAL`.
-6. The redirect selector is the widened 3-bit `jal`.
-7. `mtvec` and `mepc` reach decode through a new interface file, `CSRTrapIntf`.
-8. The redirect stays at issue, after the drain (section 10).
-9. Nested traps and interrupts are out of scope. `MIE` is cleared on entry, but there are no interrupt sources.
+- Add to the existing v5 block (not yet released, so no new version tag), on both modports:
 
-Remaining:
+  | Field | Width | Meaning |
+  |---|---|---|
+  | `exc_val` | 1 | This instruction raises an exception at commit |
+  | `exc_cause` | 5 | mcause code, valid when `exc_val` |
 
-- The name `CSRTrapIntf` is provisional.
+- Contract, stated in the header comment: an execute unit that raises an exception drives `wen = 0` and `csr_cmd = CSR_CMD_NONE`. The exception replaces the
+  instruction's normal effects.
 
-## 12. Implementation order (after [CSR_DESIGN.md](CSR_DESIGN.md))
+### 6.7 Execute units and [ExQueue.v](hw/execute/ExQueue.v)
 
-1. `ISA.v` `MRET`; `UArch.v` new uops and `num_ops`.
-2. `InstRouter` entries for the new uops; `InstDecoder` entries (with `is_csr = 1`).
-3. New `CSRTrapIntf`.
-4. `CSRFile`: `mstatus`/`mscratch`/`mtvec`/`mepc`/`mcause`/`mtval`, trap `cmd` handling, `CSRTrapIntf` outputs. `CSRNotif` gains `pc`; the commit unit drives it from `rob_output.pc`.
-5. CSR pipe: the three trap `cmd` arms.
-6. Decode: widen `jal` to 3 bits, the redirect condition (fires on `drained`, not on `X_xfer`), the target mux, and the `CSRTrapIntf` input.
+- ALUL6, ControlFlowUnitL6, IterativeMulDivRemL7, LoadStoreUnitL7 and ALUF tie `exc_val` and `exc_cause` to 0, next to their `csr_*` tie-offs.
+- `ExQueue` adds both fields to `msg_t` and forwards them.
 
-No tests are added or changed as part of this work. Top-level integration is out of scope, as in [CSR_DESIGN.md](CSR_DESIGN.md).
+### 6.8 [CSR.v](hw/execute/execute_units_l8/CSR.v) (CSR pipe)
+
+- The uop decode produces the whole commit action:
+
+  ```systemverilog
+  always_comb begin
+    csr_cmd   = CSR_CMD_NONE;
+    exc_val   = 1'b0;
+    exc_cause = '0;
+    unique case (D_reg.uop)
+      OP_CSRRW, OP_CSRRWI: csr_cmd = CSR_CMD_WRITE;
+      OP_CSRRS, OP_CSRRSI: csr_cmd = CSR_CMD_SET;
+      OP_CSRRC, OP_CSRRCI: csr_cmd = CSR_CMD_CLEAR;
+      OP_MRET:             csr_cmd = CSR_CMD_MRET;
+      OP_ECALL:  begin exc_val = 1'b1; exc_cause = EXC_ECALL_M;    end
+      OP_EBREAK: begin exc_val = 1'b1; exc_cause = EXC_BREAKPOINT; end
+      default: ;
+    endcase
+  end
+  ```
+
+- Drives `W.exc_val` and `W.exc_cause`. Everything else is unchanged: `W.wen` is 0 because `waddr = x0`, `csr_addr` and `csr_wdata` are 0 (from `op2`/`op1` = x0), and
+  the CSR read at address 0 is harmless.
+- Header comment: "Execute unit for CSR and system instructions".
+
+### 6.9 [CSRNotif.v](intf/CSRNotif.v)
+
+The commit-time action notification. It gains a `p_seq_num_bits` parameter, as [CommitNotif.v](intf/CommitNotif.v) has.
+
+| Field | Width | Meaning |
+|---|---|---|
+| `val` | 1 | An action is applied this cycle |
+| `cmd` | 3 | `CSR_CMD_*` (ignored when `exc_val`) |
+| `addr` | 12 | CSR address |
+| `wdata` | 32 | CSR operand (`rs1` value or `zimm`) |
+| `exc_val` | 1 | Take an exception |
+| `exc_cause` | 5 | mcause code |
+| `pc` | 32 | pc of the committing instruction (becomes `mepc`) |
+| `seq_num` | `p_seq_num_bits` | Sequence number of the committing instruction (the squash's `seq_num`) |
+
+Publisher: the commit unit. Subscriber: `CSRFile`.
+
+### 6.10 [WritebackCommitUnitL4.v](hw/writeback_commit/writeback_commit_unit_variants/WritebackCommitUnitL4.v)
+
+- Carry `exc_val` and `exc_cause` exactly like the `csr_*` fields: unpack per pipe, mask with `Ex_gnt`, OR-reduce into `_sel` signals (both the `SYNTHESIS` and non-`SYNTHESIS`
+  branches), `X_input` (reset to 0 and default 0 in `X_reg_next`), `t_rob_msg`, and `rob_input`.
+- Include and import `UArch` for `CSR_CMD_NONE`.
+- At dequeue:
+
+  ```systemverilog
+  assign csr_notif.val       = commit.val & ( rob_output.exc_val |
+                                              ( rob_output.csr_cmd != CSR_CMD_NONE ) );
+  assign csr_notif.cmd       = rob_output.csr_cmd;
+  assign csr_notif.addr      = rob_output.csr_addr;
+  assign csr_notif.wdata     = rob_output.csr_wdata;
+  assign csr_notif.exc_val   = rob_output.exc_val;
+  assign csr_notif.exc_cause = rob_output.exc_cause;
+  assign csr_notif.pc        = rob_output.pc;
+  assign csr_notif.seq_num   = commit.seq_num;
+  ```
+
+- `complete`, `commit`, `SeqArb` and the trace are unchanged. **No squash port**: the redirect decision belongs to `CSRFile`.
+
+### 6.11 `CSRFile` (moves to `hw/csr/CSRFile.v`)
+
+It is no longer an execute unit: it subscribes to commit-time actions and publishes squashes. Include guard `HW_CSR_CSRFILE_V`.
+
+**Ports:**
+
+```systemverilog
+module CSRFile (
+  input  logic    clk,
+  input  logic    rst,
+  CSRIntf.F_intf  csr,        // read port (CSR pipe)
+  CSRNotif.sub    csr_notif,  // commit-time actions
+  SquashNotif.pub squash      // trap / return redirect
+);
+```
+
+**State.** Only legal bits are stored; unknown addresses read 0 and ignore writes (unchanged).
+
+| CSR | Addr | Storage | Read value |
+|---|---|---|---|
+| `fflags` | 0x001 | `fflags[4:0]` | `{27'b0, fflags}` |
+| `frm` | 0x002 | `frm[2:0]` | `{29'b0, frm}` |
+| `fcsr` | 0x003 | (`frm`, `fflags`) | `{24'b0, frm, fflags}` |
+| `mstatus` | 0x300 | `mie`, `mpie` | `{19'b0, 2'b11, 3'b0, mpie, 3'b0, mie, 3'b0}` |
+| `mtvec` | 0x305 | `mtvec_base[31:2]` | `{mtvec_base, 2'b00}` |
+| `mscratch` | 0x340 | `mscratch[31:0]` | `mscratch` |
+| `mepc` | 0x341 | `mepc[31:2]` | `{mepc, 2'b00}` |
+| `mcause` | 0x342 | `mcause_int`, `mcause_code[4:0]` | `{mcause_int, 26'b0, mcause_code}` |
+| `mtval` | 0x343 | `mtval[31:0]` | `mtval` |
+
+Addresses are `localparam`s in `CSRFile` (it is the only user).
+
+**Read.** One function `read_csr( addr )` serves two combinational read ports: `csr.rdata = read_csr( csr.addr )` for the CSR pipe, and
+`old_val = read_csr( csr_notif.addr )` for read-modify-write.
+
+**Write.** Replaces the per-command, per-address nested `case`s with read-modify-write:
+
+```systemverilog
+always_comb begin
+  case( csr_notif.cmd )
+    CSR_CMD_WRITE: new_val = csr_notif.wdata;
+    CSR_CMD_SET:   new_val = old_val |  csr_notif.wdata;
+    CSR_CMD_CLEAR: new_val = old_val & ~csr_notif.wdata;
+    default:       new_val = old_val;
+  endcase
+end
+```
+
+Register updates on `csr_notif.val`, in priority order:
+
+1. `exc_val`: `mepc <= pc[31:2]`, `mcause <= {1'b0, exc_cause}`, `mtval <= 0`, `mpie <= mie`, `mie <= 0`.
+2. `cmd == CSR_CMD_MRET`: `mie <= mpie`, `mpie <= 1`.
+3. `cmd` is write/set/clear: the CSR selected by `addr` takes the legal bits of `new_val` (`fcsr` writes `frm <= new_val[7:5]`, `fflags <= new_val[4:0]`;
+   `mstatus` writes only `mie <= new_val[3]`, `mpie <= new_val[7]`; `mtvec` and `mepc` write only bits 31:2; `mcause` writes bit 31 and bits 4:0).
+
+The existing `fflags`/`frm`/`fcsr` behaviour is unchanged by the refactor. Masking lives in the write, so no path can make `mepc[1:0]` or the `mtvec` mode nonzero.
+
+**Redirect:**
+
+```systemverilog
+assign squash.val     = csr_notif.val & ( csr_notif.exc_val |
+                                          ( csr_notif.cmd == CSR_CMD_MRET ) );
+assign squash.target  = csr_notif.exc_val ? { mtvec_base, 2'b00 } : { mepc, 2'b00 };
+assign squash.seq_num = csr_notif.seq_num;
+```
+
+The target reads the registers before this cycle's update. That is correct: an exception reads `mtvec` (which it does not write), and `MRET` reads `mepc` (which it does
+not write).
+
+### 6.12 Assembler ([asm/inst.h](asm/inst.h))
+
+- Add `MRET` to `inst_name_t` and `{ MRET, "mret", 0x30200073, 0xFFFFFFFF }` to `inst_specs`, next to `ecall`/`ebreak`. The FL model's `switch` has a `default`, so it needs
+  no change to build.
+
+### 6.13 Unchanged
+
+`D__XIntf`, `CSRIntf`, `ROB.v`, `SeqAge`, `SeqArb`, `CommitNotif`, `CompleteNotif`, `SquashNotif`, `SquashUnitL1`, `FetchUnitL3`, `SeqNumGenL3`, `RenameTable`, and all tests.
+
+## 7. Invariants
+
+1. **Precise.** Every older instruction has committed before the trap op issues (back barrier). Nothing younger passes decode until the trap op commits (front barrier),
+   and the squash discards younger instructions still in fetch.
+2. **No stale younger instruction slips in.** In the squash cycle `serial_in_flight` is still 1, so `F.rdy = 0`. From then on `FetchUnitL3` holds `D.val` low until every
+   dropped response is gone.
+3. **The squash hits only younger instructions.** Its `seq_num` is the trap op's own, and `is_older(x, x) = 0`. The trap op commits normally, and `SeqNumGenL3` frees its
+   number through commit, not through the squash.
+4. **One squash publisher at a time.** When the trap op commits nothing else is in flight, so decode's and the control-flow unit's squash outputs are idle. The squash
+   unit's age comparison would grant the trap op anyway, because it is the oldest.
+5. **The handler sees the new state.** The CSR writes land at the td+2 edge, and decode cannot accept an instruction before td+3. As in
+   [CSR_DESIGN.md](CSR_DESIGN.md) invariant 3, this requires `CSRFile` to apply `CSRNotif` in the commit cycle; a registered hop would need the barrier to release a cycle later.
+6. **The redirect target is current.** Any older write to `mtvec` or `mepc` is a CSR op that committed before the trap op could reach decode, and the target reads the
+   registers in the trap op's own commit cycle.
+7. **The 1-bit `serial_in_flight` is exact.** The argument in [CSR_DESIGN.md](CSR_DESIGN.md) ("Why the 1-bit clear is safe") applies unchanged: trap ops have the same
+   barriers. The squash falls in the trap op's own commit cycle, while decode is still closed.
+8. **Wrong-path trap ops never act.** A trap op behind an unresolved branch is killed in `F_reg` by `should_squash` before it can issue, so it never reaches commit.
+
+## 8. Hazards covered
+
+| Hazard | Covered by |
+|---|---|
+| An older instruction has not finished when the trap is taken | Back barrier |
+| A younger instruction executes before the trap | Front barrier, plus the squash for instructions still in fetch |
+| A stale fetched instruction enters after the redirect | `serial_in_flight` in the squash cycle, then `FetchUnitL3` dropping |
+| The handler reads `mepc`/`mcause`/`mstatus` before the trap writes them | Barrier release in the commit cycle, the same cycle as the write |
+| A trap on a wrong path | It never issues (`should_squash` in `F_reg`) |
+| `csrw mtvec` or `csrw mepc` immediately before the trap op | The write commits before the trap op enters decode (front barrier) |
+| A misaligned `mepc` or a vectored `mtvec` written by software | Masked on every write in `CSRFile` |
+
+## 9. Behaviour details
+
+- **Commit trace.** The trap op appears with its pc and `wen = 0`. The instruction after it in memory never commits before the handler runs.
+- **Return address.** `mepc` holds the pc of the `ECALL`/`EBREAK`; the handler adds 4 before `MRET`, as the spec requires.
+- **Nested traps.** Not handled specially. A trap inside a handler overwrites `mepc`/`mcause`, as the spec allows when software has not saved them.
+- **`MIE`.** Cleared on entry and restored by `MRET`, but there are no interrupt sources yet.
+- **Unimplemented CSRs** read 0 and ignore writes. Trapping on them needs the illegal-instruction path (out of scope).
+
+## 10. Costs
+
+- **Latency:** the drain, then the redirect at td+2. Traps are rare.
+- **Area:** 6 bits (`exc_val`, `exc_cause`) in each ROB entry, in `X_reg` and in each `ExQueue` entry, plus about 110 bits of new CSR state.
+- **Timing:** a new combinational path from ROB dequeue through `CSRNotif`, `CSRFile`, `SquashUnitL1` to fetch and decode. If it fails timing, register the squash and
+  release the barrier one cycle later (section 11).
+
+## 11. Alternatives considered
+
+| Alternative | Why not |
+|---|---|
+| **Take the trap in decode, at issue after the drain** (the previous version of this design) | Redirects about 2 cycles sooner, but needs `mtvec`/`mepc` in decode, a 3-bit `jal`, and a rule against deriving the redirect from `X_xfer` (a combinational loop through `should_squash`). All of it is discarded at late commit. |
+| **Redirect from decode before the drain** | Fastest, but a wrong-path trap op can redirect fetch, so correctness depends on squash-ordering details. |
+| **Register the commit-time squash** | Shorter timing path, but the barrier release must also move a cycle later, or a stale fetched instruction can enter. Kept as the timing fallback. |
+| **Commit unit publishes the squash**, with `CSRFile` exporting `mtvec`/`mepc` to it | The commit unit would encode CSR semantics (which action redirects where) and needs a new CSRFile-to-commit read interface. |
+| **Trap codes in `csr_cmd`** | One spare code left after three traps, and no room for a cause or `mtval`. Blocks late exceptions. |
+| **One "oldest exception" record in the commit unit** (instead of per-entry fields) | Least area, but needs age comparison on every insert and clearing on every squash, and a stale record can match a reused sequence number. Worth revisiting if ROB area matters. |
+| **One `OP_TRAP` uop with the cause as an operand** | Saves two uops, but needs a cause column or operand mux in decode and a cause field `D__XIntf` does not have. Uop space is not the constraint (the enum stays 6 bits). |
+| **Only the front barrier for trap ops** | Saves the drain wait, but the "next commit is its own" argument for the 1-bit `serial_in_flight` no longer holds; it would need to track a sequence number. |
+
+## 12. Moving to late exceptions (future)
+
+What stays: `exc_val`/`exc_cause` on `X__WIntf` and in the ROB entry, the `CSRNotif` action path, the `CSRFile` trap entry, return and redirect, the third
+`SquashUnitL1` input, and the barriers for CSR ops. A CSR op issues only when nothing older is in flight, so an older faulting instruction can never squash one after issue.
+
+What is added:
+
+1. **Producers.** Execute units drive `exc_val`/`exc_cause` for their own faults, and `exc_tval` is added (fault address or instruction bits). Illegal instructions become
+   `OP_ILLEGAL` (cause 2) through the CSR pipe.
+2. **Squash past decode.** Every execute pipe, `ExQueue`, the commit unit's `X_reg`, and the ROB (clear younger entries) subscribe to the squash.
+3. **Rename recovery.** Restore the rename table and free list from a committed copy (areg -> preg) on a squash. This needs `preg` in the ROB entry and `CommitNotif`.
+   A backward ROB walk cannot work, because entries are inserted only when an instruction completes.
+4. **Sequence-number reuse.** `SeqNumGenL3` rewinds on a squash, so late results from squashed operations can carry the numbers of new instructions. Add an epoch bit, or
+   drain squashed operations before reuse.
+5. **Stores and MMIO loads.** `LoadStoreUnitL7` writes memory at execute. Stores must be sent at commit (a store buffer) or held until nothing older can fault, and so must
+   loads with side effects (for example the stdin read at `0xF0000004`, which pops the keyboard FIFO).
+
+## 13. Known impacts
+
+- `CSRFile` moves, so [CSRL8_test.v](hw/execute/test/l8/CSRL8_test.v)'s include path breaks. That test is already stale ([CSR_DESIGN.md](CSR_DESIGN.md) section 12) and is left
+  unchanged.
+- The FL model throws on `ECALL`/`EBREAK` and has no trap state, so trace-compare tests cannot cover traps; directed `check_trace` tests can.
+- `num_ops` grows to 47, so every `rv_op_vec` parameter is 47 bits. The `_VEC` parameters are defined relative to `num_ops`, so nothing else changes.
+- Older decode units instantiate `InstDecoder` with named ports and leave `is_csr` unconnected; after the rename they leave `serialize` unconnected instead. In older tops,
+  trap encodings now decode as valid but no pipe claims them, so decode still stalls on them, as before.
+
+## 14. Implementation order (modules only, no tests)
+
+1. `UArch.v` constants and uops; `ISA.v` `MRET`; assembler `mret`.
+2. `InstDecoder` rows and the `serialize` rename; `InstRouter` entries; `DecodeIssueUnitL6` renames.
+3. `X__WIntf` exception fields; execute-unit tie-offs; `ExQueue` forwarding.
+4. `CSR.v`: uop to action mapping, using the constants.
+5. `CSRNotif` fields; `WritebackCommitUnitL4` carries and forwards them.
+6. `CSRFile`: move to `hw/csr/`, new CSRs, read-modify-write refactor, trap and return updates, squash port.
+
+## 15. Out of scope
+
+- **Top-level integration.** A top needs: the L6 decode unit, the L4 commit unit, a CSR pipe whose subset includes `OP_CSRR*_VEC`, `OP_ECALL_VEC`, `OP_EBREAK_VEC` and
+  `OP_MRET_VEC`, a `CSRFile` connected to `CSRNotif`, and `SquashUnitL1 #(.p_num_arb(3))` with `CSRFile.squash` as the third input.
+- All tests, including a `CSRFile` unit test and directed top-level trap tests.
+- Everything listed in section 12, illegal-instruction exceptions, interrupts, and FL-model trap support.

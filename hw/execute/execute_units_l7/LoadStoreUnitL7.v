@@ -331,6 +331,10 @@ module LoadStoreUnitL7 #(
   assign W.preg             = stage2_reg.preg;
   assign W.ppreg            = stage2_reg.ppreg;
 
+  assign W.csr_cmd          = 3'b0;
+  assign W.csr_addr         = 12'b0;
+  assign W.csr_wdata        = 32'b0;
+
   always_comb begin
     case( stage2_reg.uop )
       OP_LB:   W.wen = 1'b1;

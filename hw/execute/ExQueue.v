@@ -34,6 +34,9 @@ module ExQueue #(
     logic   [p_seq_num_bits-1:0] seq_num;
     logic [p_phys_addr_bits-1:0] preg;
     logic [p_phys_addr_bits-1:0] ppreg;
+    logic                  [2:0] csr_cmd;
+    logic                 [11:0] csr_addr;
+    logic                 [31:0] csr_wdata;
   } msg_t;
 
   msg_t in_msg;
@@ -46,6 +49,9 @@ module ExQueue #(
   assign in_msg.seq_num = in.seq_num;
   assign in_msg.preg    = in.preg;
   assign in_msg.ppreg   = in.ppreg;
+  assign in_msg.csr_cmd   = in.csr_cmd;
+  assign in_msg.csr_addr  = in.csr_addr;
+  assign in_msg.csr_wdata = in.csr_wdata;
 
   assign out.pc      = out_msg.pc;
   assign out.waddr   = out_msg.waddr;
@@ -54,6 +60,9 @@ module ExQueue #(
   assign out.seq_num = out_msg.seq_num;
   assign out.preg    = out_msg.preg;
   assign out.ppreg   = out_msg.ppreg;
+  assign out.csr_cmd   = out_msg.csr_cmd;
+  assign out.csr_addr  = out_msg.csr_addr;
+  assign out.csr_wdata = out_msg.csr_wdata;
 
   //----------------------------------------------------------------------
   // Use a FIFO with bypassing to buffer the stream

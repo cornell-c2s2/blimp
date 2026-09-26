@@ -478,6 +478,10 @@ module IterativeMulDivRemL7 (
   assign W.ppreg   = D_reg.ppreg;
   assign W.wen     = 1'b1;
 
+  assign W.csr_cmd   = 3'b0;
+  assign W.csr_addr  = 12'b0;
+  assign W.csr_wdata = 32'b0;
+
   always_comb begin
     case( D_reg.uop )
       OP_MUL:    W.wdata = result[31:0];

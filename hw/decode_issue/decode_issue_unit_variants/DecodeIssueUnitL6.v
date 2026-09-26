@@ -1,10 +1,11 @@
 //========================================================================
 // DecodeIssueUnitL6.v
 //========================================================================
-// An in-order, single-issue decoder with register renaming
+// An in-order, single-issue decoder with register renaming, and barriers
+// around CSR instructions
 
-`ifndef HW_DECODEISSUE_DECODEISSUEUNITVARIANTS_DECODEISSUEUNITL5_V
-`define HW_DECODEISSUE_DECODEISSUEUNITVARIANTS_DECODEISSUEUNITL5_V
+`ifndef HW_DECODEISSUE_DECODEISSUEUNITVARIANTS_DECODEISSUEUNITL6_V
+`define HW_DECODEISSUE_DECODEISSUEUNITVARIANTS_DECODEISSUEUNITL6_V
 
 `ifndef SYNTHESIS
 `include "asm/disassemble.v"
@@ -24,7 +25,7 @@
 
 import ISA::*;
 
-module DecodeIssueUnitL5_sp26 #(
+module DecodeIssueUnitL6 #(
   parameter p_num_pipes                                = 1,
   parameter p_num_phys_regs                            = 36,
   parameter rv_op_vec [p_num_pipes-1:0] p_pipe_subsets = '{default: p_tinyrv1}
@@ -120,6 +121,7 @@ module DecodeIssueUnitL5_sp26 #(
   logic       decoder_op2_sel;
   logic [1:0] decoder_jal;
   logic       decoder_op3_sel;
+  logic       decoder_is_csr;
   
   InstDecoder decoder (
     .val     (decoder_val),
@@ -133,7 +135,8 @@ module DecodeIssueUnitL5_sp26 #(
     .op1_sel (decoder_op1_sel),
     .op2_sel (decoder_op2_sel),
     .jal     (decoder_jal),
-    .op3_sel (decoder_op3_sel)
+    .op3_sel (decoder_op3_sel),
+    .is_csr  (decoder_is_csr)
   );
 
   logic [31:0] rdata0, rdata1;
@@ -227,17 +230,43 @@ module DecodeIssueUnitL5_sp26 #(
                          seq_age.is_older( squash_sub.seq_num, F_reg.seq_num );
 
   //----------------------------------------------------------------------
+  // CSR barriers
+  //----------------------------------------------------------------------
+  // A CSR instruction is the only instruction in flight while it executes
+  //
+  //  - Back barrier: it doesn't issue until every older instruction has committed
+  //  - Front barrier: nothing younger enters until it commits
+
+  logic csr_in_decode;
+  logic drained;
+  logic csr_in_flight;
+
+  assign csr_in_decode = F_reg.val & decoder_val & decoder_is_csr;
+  assign drained       = ( F_reg.seq_num == seq_age.oldest_seq_num );
+
+  always_ff @( posedge clk ) begin
+    if( rst )
+      csr_in_flight <= 1'b0;
+    else if( X_xfer & decoder_is_csr )
+      csr_in_flight <= 1'b1;
+    else if( commit.val )
+      csr_in_flight <= 1'b0;
+  end
+
+  //----------------------------------------------------------------------
   // Route the instruction (set val/rdy for pipes) based on uop
   //----------------------------------------------------------------------
 
   InstRouter #(p_num_pipes, p_pipe_subsets) inst_router (
     .uop   (decoder_uop),
-    .val   (F_reg.val & !stall_pending & decoder_val & !should_squash),
+    .val   (F_reg.val & !stall_pending & decoder_val & !should_squash & ( !decoder_is_csr | drained )),
     .Ex    (Ex),
     .xfer  (X_xfer)
   );
 
-  assign F.rdy = ~debug_stall &
+  assign F.rdy = ~debug_stall                         &
+                 ~csr_in_flight                       &
+                 ~( csr_in_decode & ~should_squash )  &
                  ((X_xfer & !stall_pending & decoder_val) | 
                  should_squash                           |
                  (!F_reg.val));
@@ -297,7 +326,8 @@ module DecodeIssueUnitL5_sp26 #(
     int trace_level
     // verilator lint_on UNUSEDSIGNAL
   );
-    if( F_reg.val & F.rdy )
+    // Trace on issue: F.rdy stays low while a CSR is in decode
+    if( X_xfer )
       trace = $sformatf("%x: %-30s", F_reg.seq_num, disassemble(F_reg.inst, F_reg.pc) );
     else
       trace = {(32 + ceil_div_4( p_seq_num_bits )){" "}};
@@ -306,4 +336,4 @@ module DecodeIssueUnitL5_sp26 #(
 
 endmodule
 
-`endif // HW_DECODEISSUE_DECODEISSUEUNITVARIANTS_DECODEISSUEUNITL5_V
+`endif // HW_DECODEISSUE_DECODEISSUEUNITVARIANTS_DECODEISSUEUNITL6_V
