@@ -83,6 +83,10 @@ module InstRouterUnit #(
       if( in_subset(p_isa_subset, OP_CSRRWI_VEC ) ) val_uop |= ( uop == OP_CSRRWI  );
       if( in_subset(p_isa_subset, OP_CSRRSI_VEC ) ) val_uop |= ( uop == OP_CSRRSI  );
       if( in_subset(p_isa_subset, OP_CSRRCI_VEC ) ) val_uop |= ( uop == OP_CSRRCI  );
+
+      if( in_subset(p_isa_subset, OP_ECALL_VEC  ) ) val_uop |= ( uop == OP_ECALL   );
+      if( in_subset(p_isa_subset, OP_EBREAK_VEC ) ) val_uop |= ( uop == OP_EBREAK  );
+      if( in_subset(p_isa_subset, OP_MRET_VEC   ) ) val_uop |= ( uop == OP_MRET    );
     end
   endgenerate
 

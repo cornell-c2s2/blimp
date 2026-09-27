@@ -2,18 +2,23 @@
 // WritebackCommitUnitL4.v
 //========================================================================
 // A writeback unit that reorders messages based on sequence number
-// (including physical register specifiers), and applies CSR operations
-// at commit
+// (including physical register specifiers), and forwards CSR
+// operations and exceptions to the CSR file
 
 `ifndef HW_WRITEBACK_WRITEBACKCOMMITUNITVARIANTS_WRITEBACKCOMMITUNITL4_V
 `define HW_WRITEBACK_WRITEBACKCOMMITUNITVARIANTS_WRITEBACKCOMMITUNITL4_V
 
+`include "defs/CSRDefs.v"
+`include "defs/UArch.v"
 `include "hw/writeback_commit/ROB.v"
 `include "hw/util/SeqArb.v"
 `include "intf/CompleteNotif.v"
 `include "intf/CommitNotif.v"
 `include "intf/CSRNotif.v"
 `include "intf/X__WIntf.v"
+
+import CSRDefs::*;
+import UArch::*;
 
 module WritebackCommitUnitL4 #(
   parameter p_num_pipes = 1
@@ -42,7 +47,7 @@ module WritebackCommitUnitL4 #(
   //----------------------------------------------------------------------
   // CSR Interface
   //----------------------------------------------------------------------
-  // CSR operations are applied when the instruction commits
+  // Commit-time actions (CSR operations and exceptions)
 
   CSRNotif.pub      csr_notif
 );
@@ -66,6 +71,8 @@ module WritebackCommitUnitL4 #(
   logic                  [2:0] Ex_csr_cmd   [p_num_pipes-1:0];
   logic                 [11:0] Ex_csr_addr  [p_num_pipes-1:0];
   logic                 [31:0] Ex_csr_wdata [p_num_pipes-1:0];
+  logic                        Ex_exc_val   [p_num_pipes-1:0];
+  logic                  [4:0] Ex_exc_cause [p_num_pipes-1:0];
 
   genvar i;
   generate
@@ -81,6 +88,8 @@ module WritebackCommitUnitL4 #(
       assign Ex_csr_cmd[i]   = Ex[i].csr_cmd;
       assign Ex_csr_addr[i]  = Ex[i].csr_addr;
       assign Ex_csr_wdata[i] = Ex[i].csr_wdata;
+      assign Ex_exc_val[i]   = Ex[i].exc_val;
+      assign Ex_exc_cause[i] = Ex[i].exc_cause;
       assign Ex[i].rdy     = Ex_rdy[i];
     end
   endgenerate
@@ -115,6 +124,8 @@ module WritebackCommitUnitL4 #(
   logic                  [2:0] Ex_csr_cmd_masked   [p_num_pipes-1:0];
   logic                 [11:0] Ex_csr_addr_masked  [p_num_pipes-1:0];
   logic                 [31:0] Ex_csr_wdata_masked [p_num_pipes-1:0];
+  logic                        Ex_exc_val_masked   [p_num_pipes-1:0];
+  logic                  [4:0] Ex_exc_cause_masked [p_num_pipes-1:0];
 
   generate
     for( i = 0; i < p_num_pipes; i = i + 1 ) begin: MASK
@@ -129,6 +140,8 @@ module WritebackCommitUnitL4 #(
       assign Ex_csr_cmd_masked[i]   = Ex_csr_cmd[i]   & {3{Ex_gnt[i]}};
       assign Ex_csr_addr_masked[i]  = Ex_csr_addr[i]  & {12{Ex_gnt[i]}};
       assign Ex_csr_wdata_masked[i] = Ex_csr_wdata[i] & {32{Ex_gnt[i]}};
+      assign Ex_exc_val_masked[i]   = Ex_exc_val[i]   & Ex_gnt[i];
+      assign Ex_exc_cause_masked[i] = Ex_exc_cause[i] & {5{Ex_gnt[i]}};
     end
   endgenerate
 
@@ -143,6 +156,8 @@ module WritebackCommitUnitL4 #(
   logic                  [2:0] Ex_csr_cmd_sel;
   logic                 [11:0] Ex_csr_addr_sel;
   logic                 [31:0] Ex_csr_wdata_sel;
+  logic                        Ex_exc_val_sel;
+  logic                  [4:0] Ex_exc_cause_sel;
 
 `ifndef SYNTHESIS
   assign Ex_pc_sel      = Ex_pc_masked.or();
@@ -156,6 +171,8 @@ module WritebackCommitUnitL4 #(
   assign Ex_csr_cmd_sel   = Ex_csr_cmd_masked.or();
   assign Ex_csr_addr_sel  = Ex_csr_addr_masked.or();
   assign Ex_csr_wdata_sel = Ex_csr_wdata_masked.or();
+  assign Ex_exc_val_sel   = Ex_exc_val_masked.or();
+  assign Ex_exc_cause_sel = Ex_exc_cause_masked.or();
 `else
   always_comb begin
     Ex_pc_sel      = '0;
@@ -169,6 +186,8 @@ module WritebackCommitUnitL4 #(
     Ex_csr_cmd_sel   = '0;
     Ex_csr_addr_sel  = '0;
     Ex_csr_wdata_sel = '0;
+    Ex_exc_val_sel   = '0;
+    Ex_exc_cause_sel = '0;
     
     for (int i = 0; i < p_num_pipes; i = i + 1) begin
       Ex_pc_sel      = Ex_pc_sel      | Ex_pc_masked[i];
@@ -182,6 +201,8 @@ module WritebackCommitUnitL4 #(
       Ex_csr_cmd_sel   = Ex_csr_cmd_sel   | Ex_csr_cmd_masked[i];
       Ex_csr_addr_sel  = Ex_csr_addr_sel  | Ex_csr_addr_masked[i];
       Ex_csr_wdata_sel = Ex_csr_wdata_sel | Ex_csr_wdata_masked[i];
+      Ex_exc_val_sel   = Ex_exc_val_sel   | Ex_exc_val_masked[i];
+      Ex_exc_cause_sel = Ex_exc_cause_sel | Ex_exc_cause_masked[i];
     end
   end
 `endif // SYNTHESIS
@@ -208,6 +229,8 @@ module WritebackCommitUnitL4 #(
     logic                  [2:0] csr_cmd;
     logic                 [11:0] csr_addr;
     logic                 [31:0] csr_wdata;
+    logic                        exc_val;
+    logic                  [4:0] exc_cause;
   } X_input;
 
   X_input X_reg;
@@ -225,7 +248,9 @@ module WritebackCommitUnitL4 #(
         ppreg: '0,
         csr_cmd: '0,
         csr_addr: '0,
-        csr_wdata: '0
+        csr_wdata: '0,
+        exc_val: 1'b0,
+        exc_cause: '0
       };
     else
       X_reg <= X_reg_next;
@@ -243,7 +268,9 @@ module WritebackCommitUnitL4 #(
         ppreg:   Ex_ppreg_sel,
         csr_cmd:   Ex_csr_cmd_sel,
         csr_addr:  Ex_csr_addr_sel,
-        csr_wdata: Ex_csr_wdata_sel
+        csr_wdata: Ex_csr_wdata_sel,
+        exc_val:   Ex_exc_val_sel,
+        exc_cause: Ex_exc_cause_sel
       };
     else
       X_reg_next = '{ 
@@ -256,7 +283,9 @@ module WritebackCommitUnitL4 #(
         ppreg: '0,
         csr_cmd: '0,
         csr_addr: '0,
-        csr_wdata: '0
+        csr_wdata: '0,
+        exc_val: 1'b0,
+        exc_cause: '0
       };
   end
 
@@ -280,6 +309,8 @@ module WritebackCommitUnitL4 #(
     logic                  [2:0] csr_cmd;
     logic                 [11:0] csr_addr;
     logic                 [31:0] csr_wdata;
+    logic                        exc_val;
+    logic                  [4:0] exc_cause;
   } t_rob_msg;
 
   t_rob_msg rob_input, rob_output;
@@ -292,6 +323,8 @@ module WritebackCommitUnitL4 #(
   assign rob_input.csr_cmd   = X_reg.csr_cmd;
   assign rob_input.csr_addr  = X_reg.csr_addr;
   assign rob_input.csr_wdata = X_reg.csr_wdata;
+  assign rob_input.exc_val   = X_reg.exc_val;
+  assign rob_input.exc_cause = X_reg.exc_cause;
 
   localparam p_rob_depth = 2 ** p_seq_num_bits;
 
@@ -317,13 +350,18 @@ module WritebackCommitUnitL4 #(
   assign commit.ppreg = rob_output.ppreg;
 
   //----------------------------------------------------------------------
-  // CSR operation, applied when the instruction commits
+  // Commit-time action, applied to the CSR file
   //----------------------------------------------------------------------
 
-  assign csr_notif.val   = commit.val & ( rob_output.csr_cmd != 3'b000 );
-  assign csr_notif.cmd   = rob_output.csr_cmd;
-  assign csr_notif.addr  = rob_output.csr_addr;
-  assign csr_notif.wdata = rob_output.csr_wdata;
+  assign csr_notif.val       = commit.val & ( rob_output.exc_val |
+                                              ( rob_output.csr_cmd != CSR_CMD_NONE ) );
+  assign csr_notif.cmd       = rob_output.csr_cmd;
+  assign csr_notif.addr      = rob_output.csr_addr;
+  assign csr_notif.wdata     = rob_output.csr_wdata;
+  assign csr_notif.exc_val   = rob_output.exc_val;
+  assign csr_notif.exc_cause = rob_output.exc_cause;
+  assign csr_notif.pc        = rob_output.pc;
+  assign csr_notif.seq_num   = commit.seq_num;
 
   assign arb_commit.val     = commit.val;
   assign arb_commit.pc      = commit.pc;

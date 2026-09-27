@@ -26,7 +26,7 @@ module InstDecoder (
   output logic        op2_sel,
   output logic [1:0]  jal,
   output logic        op3_sel,
-  output logic        is_csr
+  output logic        serialize  // Must be the only instruction in flight
 );
 
   //----------------------------------------------------------------------
@@ -46,20 +46,20 @@ module InstDecoder (
     input logic       cs_op1_sel,
     input logic       cs_op2_sel,
     input logic       cs_op3_sel,
-    input logic       cs_is_csr
+    input logic       cs_serialize
   );
-    val     = cs_val;
-    uop     = cs_uop;
-    jal     = cs_jal;
-    raddr0  = cs_raddr0;
-    raddr1  = cs_raddr1;
-    waddr   = cs_waddr;
-    wen     = cs_wen;
-    imm_sel = cs_imm_sel;
-    op1_sel = cs_op1_sel;
-    op2_sel = cs_op2_sel;
-    op3_sel = cs_op3_sel;
-    is_csr  = cs_is_csr;
+    val       = cs_val;
+    uop       = cs_uop;
+    jal       = cs_jal;
+    raddr0    = cs_raddr0;
+    raddr1    = cs_raddr1;
+    waddr     = cs_waddr;
+    wen       = cs_wen;
+    imm_sel   = cs_imm_sel;
+    op1_sel   = cs_op1_sel;
+    op2_sel   = cs_op2_sel;
+    op3_sel   = cs_op3_sel;
+    serialize = cs_serialize;
   endtask
 
   //----------------------------------------------------------------------
@@ -106,7 +106,7 @@ module InstDecoder (
 
   generate
     always_comb begin
-      casez ( inst ) //          uop        jal     raddr0 raddr1 waddr wen imm_sel op1_sel  op2_sel  op3_sel  is_csr
+      casez ( inst ) //          uop        jal     raddr0 raddr1 waddr wen imm_sel op1_sel  op2_sel  op3_sel  serialize
         `RVI_INST_ADD:    cs( y, OP_ADD,    j_n,    rs1,   rs2,   rd,   y,  '0,     op1_rf,  op2_rf,  op3_x,   n );
         `RVI_INST_FADD_S: cs( y, OP_FADD_S, j_n,    rs1,   rs2,   rd,   y,  '0,     op1_rf,  op2_rf,  op3_x,   n );
         `RVI_INST_FSUB_S: cs( y, OP_FSUB_S, j_n,    rs1,   rs2,   rd,   y,  '0,     op1_rf,  op2_rf,  op3_x,   n );
@@ -157,6 +157,10 @@ module InstDecoder (
         `RVI_INST_CSRRWI: cs( y, OP_CSRRWI, j_n,    rx,    rx,    rd,   y,  IMM_I,  op1_imm, op2_imm, op3_x,   y );
         `RVI_INST_CSRRSI: cs( y, OP_CSRRSI, j_n,    rx,    rx,    rd,   y,  IMM_I,  op1_imm, op2_imm, op3_x,   y );
         `RVI_INST_CSRRCI: cs( y, OP_CSRRCI, j_n,    rx,    rx,    rd,   y,  IMM_I,  op1_imm, op2_imm, op3_x,   y );
+
+        `RVI_INST_ECALL:  cs( y, OP_ECALL,  j_n,    rx,    rx,    rx,   n,  '0,     op1_rf,  op2_rf,  op3_x,   y );
+        `RVI_INST_EBREAK: cs( y, OP_EBREAK, j_n,    rx,    rx,    rx,   n,  '0,     op1_rf,  op2_rf,  op3_x,   y );
+        `RVI_INST_MRET:   cs( y, OP_MRET,   j_n,    rx,    rx,    rx,   n,  '0,     op1_rf,  op2_rf,  op3_x,   y );
 
         `RVM_INST_MUL:    cs( y, OP_MUL,    j_n,    rs1,   rs2,   rd,   y,  '0,     op1_rf, op2_rf,  op3_x,   n );
         `RVM_INST_MULH:   cs( y, OP_MULH,   j_n,    rs1,   rs2,   rd,   y,  '0,     op1_rf,  op2_rf,  op3_x,   n );

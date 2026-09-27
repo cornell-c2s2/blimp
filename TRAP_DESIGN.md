@@ -1,6 +1,6 @@
 # Trap Design: ECALL / EBREAK / MRET (detected in decode, taken at commit)
 
-Status: final proposed design. No trap RTL has been written. This document is the module-level spec.
+Status: implemented (modules only; not yet integrated into a top). This document is the module-level spec.
 
 Builds on [CSR_DESIGN.md](CSR_DESIGN.md), whose modules are implemented (not yet integrated into a top): the front and back barriers in decode, the per-instruction
 `csr_*` fields on `X__WIntf` and in the ROB entry, `CSRNotif`, the standalone `CSRFile`, and the CSR pipe. This design also revises some of those modules; the
@@ -61,7 +61,7 @@ Nothing on the take path depends on where the exception was detected. Late commi
 | 7 | Trap ops get **both barriers**, through the same decoder bit as CSR ops, renamed `is_csr` -> `serialize` | One rule for every serializing op. The back barrier is not strictly needed for precision once the trap is taken at commit, but dropping it breaks "the next commit is the serializing op's own" (the 1-bit `serial_in_flight`). Traps are rare, so the drain cost is accepted. |
 | 8 | **`exc_tval` is deferred** | Every trap in scope writes `mtval = 0`. The field is added with the "added in vN" convention when its first producer exists (late load/store faults, illegal instructions). |
 | 9 | The squash is **combinational** from ROB dequeue, like `CSRNotif` | It keeps the proven td+2 ordering: the squash, the CSR writes and the barrier release fall in the same cycle. |
-| 10 | **Named constants** for CSR commands and exception causes, in [UArch.v](defs/UArch.v) | Three modules (CSR pipe, commit unit, `CSRFile`) share the encodings; magic numbers in each would drift. |
+| 10 | **Named constants**: BLIMP's CSR command encoding in [UArch.v](defs/UArch.v); architectural CSR addresses and exception causes in a new [CSRDefs.v](defs/CSRDefs.v) | Several modules (CSR pipe, commit unit, `CSRFile`, execute-unit tie-offs) share the encodings; magic numbers in each would drift. The split follows the existing `ISA.v`/`UArch.v` one: spec-defined values apart from BLIMP-internal ones. |
 
 ## 5. Behaviour and timeline
 
@@ -92,7 +92,7 @@ Life of an `ECALL`:
 ### 6.1 [UArch.v](defs/UArch.v)
 
 - New uops `OP_ECALL`, `OP_EBREAK`, `OP_MRET` in a `// System` group after the CSR ops, with matching `OP_ECALL_VEC`, `OP_EBREAK_VEC`, `OP_MRET_VEC`. `num_ops = 47`.
-- New constants, declared like the existing package parameters:
+- New constants for BLIMP's commit-time CSR command encoding, declared like the existing package parameters:
 
   ```systemverilog
   // CSR commands, applied at commit
@@ -101,11 +101,31 @@ Life of an `ECALL`:
   parameter logic [2:0] CSR_CMD_SET   = 3'd2;
   parameter logic [2:0] CSR_CMD_CLEAR = 3'd3;
   parameter logic [2:0] CSR_CMD_MRET  = 3'd4; // 5-7 reserved
-
-  // Exception causes (mcause code, interrupt bit clear)
-  parameter logic [4:0] EXC_BREAKPOINT = 5'd3;
-  parameter logic [4:0] EXC_ECALL_M    = 5'd11;
   ```
+
+### 6.1a New [CSRDefs.v](defs/CSRDefs.v) (package `CSRDefs`)
+
+Architectural (spec-defined) privileged definitions, kept apart from BLIMP-internal ones as `ISA.v` is from `UArch.v`. The package is not named `CSR`, because
+that is already the CSR execute unit's module name and its read port's name.
+
+```systemverilog
+// CSR addresses
+parameter logic [11:0] CSR_FFLAGS   = 12'h001;
+parameter logic [11:0] CSR_FRM      = 12'h002;
+parameter logic [11:0] CSR_FCSR     = 12'h003;
+parameter logic [11:0] CSR_MSTATUS  = 12'h300;
+parameter logic [11:0] CSR_MTVEC    = 12'h305;
+parameter logic [11:0] CSR_MSCRATCH = 12'h340;
+parameter logic [11:0] CSR_MEPC     = 12'h341;
+parameter logic [11:0] CSR_MCAUSE   = 12'h342;
+parameter logic [11:0] CSR_MTVAL    = 12'h343;
+
+// Exception causes (mcause code, interrupt bit clear)
+parameter logic [4:0] EXC_BREAKPOINT = 5'd3;
+parameter logic [4:0] EXC_ECALL_M    = 5'd11;
+```
+
+The CSR pipe and `CSRFile` include and import it.
 
 - The interfaces keep plain `logic [2:0]` / `logic [4:0]` fields and do not import the package, as today.
 
@@ -152,10 +172,11 @@ Life of an `ECALL`:
 
 ### 6.7 Execute units and [ExQueue.v](hw/execute/ExQueue.v)
 
-- ALUL6, ControlFlowUnitL6, IterativeMulDivRemL7, LoadStoreUnitL7 and ALUF tie `exc_val` and `exc_cause` to 0, next to their `csr_*` tie-offs.
+- ALUL6, ControlFlowUnitL6, IterativeMulDivRemL7, LoadStoreUnitL7 and ALUF tie `exc_val` and `exc_cause` to 0, next to their `csr_*` tie-offs (and tie `csr_cmd`
+  to `CSR_CMD_NONE` instead of a literal).
 - `ExQueue` adds both fields to `msg_t` and forwards them.
 
-### 6.8 [CSR.v](hw/execute/execute_units_l8/CSR.v) (CSR pipe)
+### 6.8 [CSR.v](hw/execute/execute_units_l9/CSR.v) (CSR pipe)
 
 - The uop decode produces the whole commit action:
 
@@ -176,9 +197,10 @@ Life of an `ECALL`:
   end
   ```
 
-- Drives `W.exc_val` and `W.exc_cause`. Everything else is unchanged: `W.wen` is 0 because `waddr = x0`, `csr_addr` and `csr_wdata` are 0 (from `op2`/`op1` = x0), and
-  the CSR read at address 0 is harmless.
+- Drives `W.exc_val` and `W.exc_cause`, and gates `W.wen` with `!exc_val` so the unit honours the exception contract itself rather than relying on decode giving
+  `waddr = x0`. `csr_addr` and `csr_wdata` are 0 (from `op2`/`op1` = x0), and the CSR read at address 0 is harmless.
 - Header comment: "Execute unit for CSR and system instructions".
+- Moves from `execute_units_l8/` to `execute_units_l9/` (include guard `HW_EXECUTE_EXECUTE_VARIANTS_L9_CSR_V`), since it is now a new level of the unit.
 
 ### 6.9 [CSRNotif.v](intf/CSRNotif.v)
 
@@ -248,7 +270,7 @@ module CSRFile (
 | `mcause` | 0x342 | `mcause_int`, `mcause_code[4:0]` | `{mcause_int, 26'b0, mcause_code}` |
 | `mtval` | 0x343 | `mtval[31:0]` | `mtval` |
 
-Addresses are `localparam`s in `CSRFile` (it is the only user).
+Addresses come from the `CSRDefs` package ([CSRDefs.v](defs/CSRDefs.v)).
 
 **Read.** One function `read_csr( addr )` serves two combinational read ports: `csr.rdata = read_csr( csr.addr )` for the CSR pipe, and
 `old_val = read_csr( csr_notif.addr )` for read-modify-write.
@@ -273,7 +295,7 @@ Register updates on `csr_notif.val`, in priority order:
 3. `cmd` is write/set/clear: the CSR selected by `addr` takes the legal bits of `new_val` (`fcsr` writes `frm <= new_val[7:5]`, `fflags <= new_val[4:0]`;
    `mstatus` writes only `mie <= new_val[3]`, `mpie <= new_val[7]`; `mtvec` and `mepc` write only bits 31:2; `mcause` writes bit 31 and bits 4:0).
 
-The existing `fflags`/`frm`/`fcsr` behaviour is unchanged by the refactor. Masking lives in the write, so no path can make `mepc[1:0]` or the `mtvec` mode nonzero.
+The existing `fflags`/`frm`/`fcsr` behaviour is unchanged by the refactor. `CSRNotif.pc[1:0]` is unused (`mepc` is word-aligned) and is marked with an `unused_` signal. Masking lives in the write, so no path can make `mepc[1:0]` or the `mtvec` mode nonzero.
 
 **Redirect:**
 
@@ -373,7 +395,7 @@ What is added:
 
 ## 13. Known impacts
 
-- `CSRFile` moves, so [CSRL8_test.v](hw/execute/test/l8/CSRL8_test.v)'s include path breaks. That test is already stale ([CSR_DESIGN.md](CSR_DESIGN.md) section 12) and is left
+- `CSRFile` and `CSR.v` move, so [CSRL8_test.v](hw/execute/test/l8/CSRL8_test.v)'s include paths break. That test is already stale ([CSR_DESIGN.md](CSR_DESIGN.md) section 12) and is left
   unchanged.
 - The FL model throws on `ECALL`/`EBREAK` and has no trap state, so trace-compare tests cannot cover traps; directed `check_trace` tests can.
 - `num_ops` grows to 47, so every `rv_op_vec` parameter is 47 bits. The `_VEC` parameters are defined relative to `num_ops`, so nothing else changes.
@@ -382,7 +404,7 @@ What is added:
 
 ## 14. Implementation order (modules only, no tests)
 
-1. `UArch.v` constants and uops; `ISA.v` `MRET`; assembler `mret`.
+1. `UArch.v` constants and uops; `CSRDefs.v` addresses and causes; `ISA.v` `MRET`; assembler `mret`.
 2. `InstDecoder` rows and the `serialize` rename; `InstRouter` entries; `DecodeIssueUnitL6` renames.
 3. `X__WIntf` exception fields; execute-unit tie-offs; `ExQueue` forwarding.
 4. `CSR.v`: uop to action mapping, using the constants.

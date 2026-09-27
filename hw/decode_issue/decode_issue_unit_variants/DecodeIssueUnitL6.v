@@ -2,7 +2,7 @@
 // DecodeIssueUnitL6.v
 //========================================================================
 // An in-order, single-issue decoder with register renaming, and barriers
-// around CSR instructions
+// around CSR and trap instructions
 
 `ifndef HW_DECODEISSUE_DECODEISSUEUNITVARIANTS_DECODEISSUEUNITL6_V
 `define HW_DECODEISSUE_DECODEISSUEUNITVARIANTS_DECODEISSUEUNITL6_V
@@ -121,22 +121,22 @@ module DecodeIssueUnitL6 #(
   logic       decoder_op2_sel;
   logic [1:0] decoder_jal;
   logic       decoder_op3_sel;
-  logic       decoder_is_csr;
+  logic       decoder_serialize;
   
   InstDecoder decoder (
-    .val     (decoder_val),
-    .inst    (F_reg.inst),
-    .uop     (decoder_uop),
-    .raddr0  (decoder_raddr0),
-    .raddr1  (decoder_raddr1),
-    .waddr   (decoder_waddr),
-    .wen     (decoder_wen),
-    .imm_sel (decoder_imm_sel),
-    .op1_sel (decoder_op1_sel),
-    .op2_sel (decoder_op2_sel),
-    .jal     (decoder_jal),
-    .op3_sel (decoder_op3_sel),
-    .is_csr  (decoder_is_csr)
+    .val       (decoder_val),
+    .inst      (F_reg.inst),
+    .uop       (decoder_uop),
+    .raddr0    (decoder_raddr0),
+    .raddr1    (decoder_raddr1),
+    .waddr     (decoder_waddr),
+    .wen       (decoder_wen),
+    .imm_sel   (decoder_imm_sel),
+    .op1_sel   (decoder_op1_sel),
+    .op2_sel   (decoder_op2_sel),
+    .jal       (decoder_jal),
+    .op3_sel   (decoder_op3_sel),
+    .serialize (decoder_serialize)
   );
 
   logic [31:0] rdata0, rdata1;
@@ -230,27 +230,28 @@ module DecodeIssueUnitL6 #(
                          seq_age.is_older( squash_sub.seq_num, F_reg.seq_num );
 
   //----------------------------------------------------------------------
-  // CSR barriers
+  // Serialization barriers
   //----------------------------------------------------------------------
-  // A CSR instruction is the only instruction in flight while it executes
+  // A serializing instruction is the only instruction in flight while it
+  // executes
   //
-  //  - Back barrier: it doesn't issue until every older instruction has committed
-  //  - Front barrier: nothing younger enters until it commits
+  //  - Back barrier: stalls until all older instructions commit
+  //  - Front barrier: stalls younger instructions until commit
 
-  logic csr_in_decode;
+  logic serial_in_decode;
   logic drained;
-  logic csr_in_flight;
+  logic serial_in_flight;
 
-  assign csr_in_decode = F_reg.val & decoder_val & decoder_is_csr;
-  assign drained       = ( F_reg.seq_num == seq_age.oldest_seq_num );
+  assign serial_in_decode = F_reg.val & decoder_val & decoder_serialize;
+  assign drained          = ( F_reg.seq_num == seq_age.oldest_seq_num );
 
   always_ff @( posedge clk ) begin
     if( rst )
-      csr_in_flight <= 1'b0;
-    else if( X_xfer & decoder_is_csr )
-      csr_in_flight <= 1'b1;
+      serial_in_flight <= 1'b0;
+    else if( X_xfer & decoder_serialize )
+      serial_in_flight <= 1'b1;
     else if( commit.val )
-      csr_in_flight <= 1'b0;
+      serial_in_flight <= 1'b0;
   end
 
   //----------------------------------------------------------------------
@@ -259,14 +260,14 @@ module DecodeIssueUnitL6 #(
 
   InstRouter #(p_num_pipes, p_pipe_subsets) inst_router (
     .uop   (decoder_uop),
-    .val   (F_reg.val & !stall_pending & decoder_val & !should_squash & ( !decoder_is_csr | drained )),
+    .val   (F_reg.val & !stall_pending & decoder_val & !should_squash & ( !decoder_serialize | drained )),
     .Ex    (Ex),
     .xfer  (X_xfer)
   );
 
-  assign F.rdy = ~debug_stall                         &
-                 ~csr_in_flight                       &
-                 ~( csr_in_decode & ~should_squash )  &
+  assign F.rdy = ~debug_stall                            &
+                 ~serial_in_flight                       &
+                 ~( serial_in_decode & ~should_squash )  &
                  ((X_xfer & !stall_pending & decoder_val) | 
                  should_squash                           |
                  (!F_reg.val));

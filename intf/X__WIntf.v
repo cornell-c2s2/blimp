@@ -41,10 +41,12 @@ interface X__WIntf
   // verilator lint_off UNUSEDSIGNAL
   // verilator lint_off UNDRIVEN
 
-  // Added in v5 (CSR operation to apply at commit; csr_cmd == 0 means none)
+  // Added in v5
   logic  [2:0] csr_cmd;
   logic [11:0] csr_addr;
   logic [31:0] csr_wdata;
+  logic        exc_val;
+  logic  [4:0] exc_cause;
 
   // verilator lint_on UNUSEDSIGNAL
   // verilator lint_on UNDRIVEN
@@ -71,7 +73,9 @@ interface X__WIntf
     // v5
     output csr_cmd,
     output csr_addr,
-    output csr_wdata
+    output csr_wdata,
+    output exc_val,
+    output exc_cause
   );
 
   modport W_intf (
@@ -92,7 +96,9 @@ interface X__WIntf
     // v5
     input  csr_cmd,
     input  csr_addr,
-    input  csr_wdata
+    input  csr_wdata,
+    input  exc_val,
+    input  exc_cause
   );
 
 endinterface

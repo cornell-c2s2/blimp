@@ -1,7 +1,7 @@
 # CSR Design: Barriered, Commit-Time CSR Updates
 
 Status: implemented (modules only; not yet integrated into a top). This document is the module-level spec. [TRAP_DESIGN.md](TRAP_DESIGN.md) revises
-some of these modules; section 15 lists the revisions (not yet implemented).
+some of these modules; section 15 lists the revisions (implemented).
 
 Scope: the modules that implement CSR instructions (`CSRRW/S/C`, `CSRRWI/SI/CI`). Out of scope: top-level
 integration and all tests (existing tests are intentionally left untouched; see "Known impacts").
@@ -42,8 +42,8 @@ squash port. `SeqNumGenL3` rewinds to `squash.seq_num + 1` on a squash, so seque
 
 ## 3. Problems with the current CSR implementation
 
-1. **The CSR file is written at execute.** [CSR.v](hw/execute/execute_units_l8/CSR.v) asserts `CSR.val = D_reg.val && W.rdy`, so
-   [CSRFile.v](hw/execute/execute_units_l8/CSRFile.v) is mutated the cycle the instruction reaches execute. CSRs are not
+1. **The CSR file is written at execute.** [CSR.v](hw/execute/execute_units_l9/CSR.v) asserts `CSR.val = D_reg.val && W.rdy`, so
+   [CSRFile.v](hw/csr/CSRFile.v) is mutated the cycle the instruction reaches execute. CSRs are not
    renamed: there is one architectural copy, so an early write cannot be undone and is visible to older in-flight instructions.
 2. **No interlock.** Nothing stops a younger instruction from entering while a CSR is in flight, and nothing makes a CSR wait
    for older instructions.
@@ -150,7 +150,7 @@ committed". This is a hierarchical read of an internal signal, the same style as
   silently breaks if a CSR pipe is ever placed behind one.
 - Older execute-unit variants used only by older tops do not need changes: the older commit units do not read the new fields.
 
-### 6.6 [CSR.v](hw/execute/execute_units_l8/CSR.v)
+### 6.6 [CSR.v](hw/execute/execute_units_l9/CSR.v)
 
 Reduced to a read-and-forward unit. The `D_reg`/`W` handshake, `D.rdy`, and the `W.wen/pc/seq_num/waddr/preg/ppreg` assignments are unchanged.
 
@@ -178,7 +178,7 @@ Follows the existing `pub`/`sub` convention (see [CommitNotif.v](intf/CommitNoti
 
 Publisher: the commit unit. Subscriber: `CSRFile`. [TRAP_DESIGN.md](TRAP_DESIGN.md) section 6.9 adds `exc_val`, `exc_cause`, `pc` and `seq_num`.
 
-### 6.9 [CSRFile.v](hw/execute/execute_units_l8/CSRFile.v)
+### 6.9 [CSRFile.v](hw/csr/CSRFile.v)
 
 - Ports: `CSRIntf.F_intf csr` (read-only) and `CSRNotif.sub csr_notif`.
 - The existing write/set/clear logic for `fflags`, `frm` and `fcsr` moves onto `csr_notif` and applies combinationally on `csr_notif.val` (the
@@ -316,7 +316,8 @@ of every CSR instruction.
 | Area | Revision |
 |---|---|
 | Decoder bit | `is_csr` is renamed `serialize`, because trap ops use it too. In `DecodeIssueUnitL6`: `decoder_is_csr` -> `decoder_serialize`, `csr_in_decode` -> `serial_in_decode`, `csr_in_flight` -> `serial_in_flight`. |
-| Encodings | `csr_cmd` values become named constants `CSR_CMD_NONE/WRITE/SET/CLEAR/MRET` in [UArch.v](defs/UArch.v), used by the CSR pipe, the commit unit and `CSRFile` instead of literals. |
+| Encodings | `csr_cmd` values become named constants `CSR_CMD_NONE/WRITE/SET/CLEAR/MRET` in [UArch.v](defs/UArch.v), used by the CSR pipe, the commit unit, `CSRFile` and the execute-unit tie-offs instead of literals. CSR addresses and exception causes live in a new [CSRDefs.v](defs/CSRDefs.v) package. |
+| CSR pipe | [CSR.v](hw/execute/execute_units_l9/CSR.v) moves from `execute_units_l8/` to `execute_units_l9/`. |
 | `X__WIntf`, ROB entry, `ExQueue` | Gain `exc_val` and `exc_cause[4:0]` alongside the `csr_*` fields. Every execute unit ties them to 0 except the CSR pipe. |
 | `CSRNotif` | Becomes the general commit-time action notification: gains `exc_val`, `exc_cause`, `pc`, `seq_num` and a `p_seq_num_bits` parameter. `val` also fires for an exception. |
 | `CSRFile` | Moves to `hw/csr/CSRFile.v`. Its write logic becomes read-modify-write (`old_val` from a second read port, then `new_val` by command, then routed by address); the `fflags`/`frm`/`fcsr` behaviour is unchanged. It gains the trap CSRs and a `SquashNotif.pub` port. |

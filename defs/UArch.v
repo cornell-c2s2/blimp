@@ -14,7 +14,7 @@ package UArch;
   // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
   // A linearization of opcodes to indicate a specific instruction type
 
-  parameter num_ops = 44;
+  parameter num_ops = 47;
 
   typedef enum logic [$clog2(num_ops)-1:0] {
     // Arithmetic
@@ -69,7 +69,12 @@ package UArch;
     OP_CSRRC,
     OP_CSRRWI,
     OP_CSRRSI,
-    OP_CSRRCI
+    OP_CSRRCI,
+
+    // System
+    OP_ECALL,
+    OP_EBREAK,
+    OP_MRET
   } rv_uop;
 
   // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -100,6 +105,9 @@ package UArch;
   parameter OP_CSRRWI_VEC = num_ops'(1 << OP_CSRRWI );
   parameter OP_CSRRSI_VEC = num_ops'(1 << OP_CSRRSI );
   parameter OP_CSRRCI_VEC = num_ops'(1 << OP_CSRRCI );
+  parameter OP_ECALL_VEC  = num_ops'(1 << OP_ECALL  );
+  parameter OP_EBREAK_VEC = num_ops'(1 << OP_EBREAK );
+  parameter OP_MRET_VEC   = num_ops'(1 << OP_MRET   );
   parameter OP_LB_VEC     = num_ops'(1 << OP_LB     );
   parameter OP_LH_VEC     = num_ops'(1 << OP_LH     );
   parameter OP_LW_VEC     = num_ops'(1 << OP_LW     );
