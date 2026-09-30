@@ -6,12 +6,14 @@
 `ifndef HW_EXECUTE_EXECUTE_VARIANTS_L7_LOADSTOREUNITL7_V
 `define HW_EXECUTE_EXECUTE_VARIANTS_L7_LOADSTOREUNITL7_V
 
+`include "defs/CSRDefs.v"
 `include "defs/UArch.v"
 `include "hw/common/Fifo.v"
 `include "intf/D__XIntf.v"
 `include "intf/X__WIntf.v"
 `include "intf/MemIntf.v"
 
+import CSRDefs::*;
 import UArch::*;
 
 module LoadStoreUnitL7 #(
@@ -330,6 +332,12 @@ module LoadStoreUnitL7 #(
   assign W.seq_num          = stage2_reg.seq_num;
   assign W.preg             = stage2_reg.preg;
   assign W.ppreg            = stage2_reg.ppreg;
+
+  assign W.csr_cmd          = CSR_CMD_NONE;
+  assign W.csr_addr         = 12'b0;
+  assign W.csr_wdata        = 32'b0;
+  assign W.exc_val          = 1'b0;
+  assign W.exc_cause        = 5'b0;
 
   always_comb begin
     case( stage2_reg.uop )

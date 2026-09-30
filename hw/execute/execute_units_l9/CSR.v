@@ -1,21 +1,22 @@
 //========================================================================
 // CSR.v
 //========================================================================
-// Execute unit for CSR instructions (CSRRW, CSRRS, CSRRC, etc.)
-// Uses CSRIntf for communication with CSRFile
+// Execute unit for CSR and system instructions
 //
 // Author: Emily Lan
 // Last updated: 11/04/25
 //========================================================================
 
-`ifndef HW_EXECUTE_EXECUTE_VARIANTS_L1_CSR_V
-`define HW_EXECUTE_EXECUTE_VARIANTS_L1_CSR_V
+`ifndef HW_EXECUTE_EXECUTE_VARIANTS_L9_CSR_V
+`define HW_EXECUTE_EXECUTE_VARIANTS_L9_CSR_V
 
+`include "defs/CSRDefs.v"
 `include "defs/UArch.v"
 `include "intf/D__XIntf.v"
 `include "intf/X__WIntf.v"
 `include "intf/CSRIntf.v"
 
+import CSRDefs::*;
 import UArch::*;
 
 module CSR (
@@ -97,28 +98,44 @@ typedef struct packed {
   // verilator lint_on ENUMVALUE
 
 //----------------------------------------------------------------------
-// CSR Operation Decode
+// Operation Decode
 //----------------------------------------------------------------------
 
   logic [2:0] csr_cmd;
+  logic       exc_val;
+  logic [4:0] exc_cause;
+
   always_comb begin
+    csr_cmd   = CSR_CMD_NONE;
+    exc_val   = 1'b0;
+    exc_cause = '0;
+
     unique case (D_reg.uop)
-      OP_CSRRW: csr_cmd = 3'b001; 
-      OP_CSRRS: csr_cmd = 3'b010; 
-      OP_CSRRC: csr_cmd = 3'b011; 
-      default:  csr_cmd = 3'b000; // read
+      OP_CSRRW, OP_CSRRWI: csr_cmd = CSR_CMD_WRITE;
+      OP_CSRRS, OP_CSRRSI: csr_cmd = CSR_CMD_SET;
+      OP_CSRRC, OP_CSRRCI: csr_cmd = CSR_CMD_CLEAR;
+      OP_MRET:             csr_cmd = CSR_CMD_MRET;
+      OP_ECALL:  begin exc_val = 1'b1; exc_cause = EXC_ECALL_M;    end
+      OP_EBREAK: begin exc_val = 1'b1; exc_cause = EXC_BREAKPOINT; end
+      default: ;
     endcase
   end
 
 //----------------------------------------------------------------------
-// CSR Request to CSR File
+// Read the old CSR value
 //----------------------------------------------------------------------
 
+  assign CSR.addr = D_reg.op2[11:0]; // CSR address
 
-  assign CSR.val   = D_reg.val && W.rdy;
-  assign CSR.addr  = D_reg.op2[11:0]; // CSR address
-  assign CSR.wdata = D_reg.op1;       // Source register data
-  assign CSR.cmd   = csr_cmd;
+//----------------------------------------------------------------------
+// Action to apply at commit
+//----------------------------------------------------------------------
+
+  assign W.csr_cmd   = csr_cmd;
+  assign W.csr_addr  = D_reg.op2[11:0];
+  assign W.csr_wdata = D_reg.op1; // rs1 value or zimm
+  assign W.exc_val   = exc_val;
+  assign W.exc_cause = exc_cause;
 
 //----------------------------------------------------------------------
 // Assign Remaining Signals
@@ -126,7 +143,7 @@ typedef struct packed {
 
   assign W.wdata = CSR.rdata; // Read data from CSR file (previous value in reg)
 
-  assign W.wen   = D_reg.val & (D_reg.waddr != 5'd0);
+  assign W.wen   = D_reg.val & (D_reg.waddr != 5'd0) & !exc_val;
 
   assign W.pc      = D_reg.pc;
   assign W.seq_num = D_reg.seq_num;
@@ -145,13 +162,17 @@ typedef struct packed {
 //----------------------------------------------------------------------
 
 `ifndef SYNTHESIS
-  function string trace (int trace_level);
+  function string trace (
+    // verilator lint_off UNUSEDSIGNAL
+    int trace_level
+    // verilator lint_on UNUSEDSIGNAL
+  );
     if (W.val & W.rdy)
       trace = $sformatf("%h: %8s CSR[%03h]=%h -> %h",
                         W.seq_num,
                         D_reg.uop.name(),
                         CSR.addr,
-                        CSR.wdata,
+                        D_reg.op1,
                         CSR.rdata);
     else
       trace = " ";
@@ -160,4 +181,4 @@ typedef struct packed {
 
 endmodule
 
-`endif // HW_EXECUTE_EXECUTE_VARIANTS_L1_CSR_V
+`endif // HW_EXECUTE_EXECUTE_VARIANTS_L9_CSR_V

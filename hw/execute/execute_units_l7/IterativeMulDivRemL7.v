@@ -7,10 +7,12 @@
 `ifndef HW_EXECUTE_EXECUTE_VARIANTS_L7_ITERATIVEMULDIVREML7_V
 `define HW_EXECUTE_EXECUTE_VARIANTS_L7_ITERATIVEMULDIVREML7_V
 
+`include "defs/CSRDefs.v"
 `include "defs/UArch.v"
 `include "intf/D__XIntf.v"
 `include "intf/X__WIntf.v"
 
+import CSRDefs::*;
 import UArch::*;
 
 //------------------------------------------------------------------------
@@ -477,6 +479,12 @@ module IterativeMulDivRemL7 (
   assign W.preg    = D_reg.preg;
   assign W.ppreg   = D_reg.ppreg;
   assign W.wen     = 1'b1;
+
+  assign W.csr_cmd   = CSR_CMD_NONE;
+  assign W.csr_addr  = 12'b0;
+  assign W.csr_wdata = 32'b0;
+  assign W.exc_val   = 1'b0;
+  assign W.exc_cause = 5'b0;
 
   always_comb begin
     case( D_reg.uop )
