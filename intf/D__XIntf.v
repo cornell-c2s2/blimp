@@ -17,7 +17,8 @@ import UArch::rv_uop;
 interface D__XIntf
 #(
   parameter p_seq_num_bits  = 5,
-  parameter p_phys_addr_bits = 6
+  parameter p_phys_addr_bits = 6,
+  parameter p_sq_idx_bits    = 2
 );
 
   typedef union packed {
@@ -49,6 +50,11 @@ interface D__XIntf
   // Added in v4
   op3_t op3;
 
+  // Store queue entry of a store (only meaningful for stores)
+  // verilator lint_off UNDRIVEN
+  logic [p_sq_idx_bits-1:0] sq_idx;
+  // verilator lint_on UNDRIVEN
+
   // verilator lint_on UNUSEDSIGNAL
 
   // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -72,7 +78,10 @@ interface D__XIntf
     output ppreg,
 
     // v4
-    output op3
+    output op3,
+
+    // Store queue
+    output sq_idx
   );
 
   modport X_intf (
@@ -92,7 +101,10 @@ interface D__XIntf
     input  ppreg,
 
     // v4
-    input  op3
+    input  op3,
+
+    // Store queue
+    input  sq_idx
   );
 
 endinterface

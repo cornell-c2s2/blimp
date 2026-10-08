@@ -26,7 +26,8 @@ module InstDecoder (
   output logic        op2_sel,
   output logic [1:0]  jal,
   output logic        op3_sel,
-  output logic        serialize  // Must be the only instruction in flight
+  output logic        serialize, // Must be the only instruction in flight
+  output logic        store      // Allocates a store queue entry
 );
 
   //----------------------------------------------------------------------
@@ -46,7 +47,8 @@ module InstDecoder (
     input logic       cs_op1_sel,
     input logic       cs_op2_sel,
     input logic       cs_op3_sel,
-    input logic       cs_serialize
+    input logic       cs_serialize,
+    input logic       cs_store
   );
     val       = cs_val;
     uop       = cs_uop;
@@ -60,6 +62,7 @@ module InstDecoder (
     op2_sel   = cs_op2_sel;
     op3_sel   = cs_op3_sel;
     serialize = cs_serialize;
+    store     = cs_store;
   endtask
 
   //----------------------------------------------------------------------
@@ -106,71 +109,71 @@ module InstDecoder (
 
   generate
     always_comb begin
-      casez ( inst ) //          uop        jal     raddr0 raddr1 waddr wen imm_sel op1_sel  op2_sel  op3_sel  serialize
-        `RVI_INST_ADD:    cs( y, OP_ADD,    j_n,    rs1,   rs2,   rd,   y,  '0,     op1_rf,  op2_rf,  op3_x,   n );
-        `RVI_INST_FADD_S: cs( y, OP_FADD_S, j_n,    rs1,   rs2,   rd,   y,  '0,     op1_rf,  op2_rf,  op3_x,   n );
-        `RVI_INST_FSUB_S: cs( y, OP_FSUB_S, j_n,    rs1,   rs2,   rd,   y,  '0,     op1_rf,  op2_rf,  op3_x,   n );
-        `RVI_INST_SUB:    cs( y, OP_SUB,    j_n,    rs1,   rs2,   rd,   y,  '0,     op1_rf,  op2_rf,  op3_x,   n );
-        `RVI_INST_AND:    cs( y, OP_AND,    j_n,    rs1,   rs2,   rd,   y,  '0,     op1_rf,  op2_rf,  op3_x,   n );
-        `RVI_INST_OR:     cs( y, OP_OR,     j_n,    rs1,   rs2,   rd,   y,  '0,     op1_rf,  op2_rf,  op3_x,   n );
-        `RVI_INST_XOR:    cs( y, OP_XOR,    j_n,    rs1,   rs2,   rd,   y,  '0,     op1_rf,  op2_rf,  op3_x,   n );
-        `RVI_INST_SLT:    cs( y, OP_SLT,    j_n,    rs1,   rs2,   rd,   y,  '0,     op1_rf,  op2_rf,  op3_x,   n );
-        `RVI_INST_SLTU:   cs( y, OP_SLTU,   j_n,    rs1,   rs2,   rd,   y,  '0,     op1_rf,  op2_rf,  op3_x,   n );
-        `RVI_INST_SRA:    cs( y, OP_SRA,    j_n,    rs1,   rs2,   rd,   y,  '0,     op1_rf,  op2_rf,  op3_x,   n );
-        `RVI_INST_SRL:    cs( y, OP_SRL,    j_n,    rs1,   rs2,   rd,   y,  '0,     op1_rf,  op2_rf,  op3_x,   n );
-        `RVI_INST_SLL:    cs( y, OP_SLL,    j_n,    rs1,   rs2,   rd,   y,  '0,     op1_rf,  op2_rf,  op3_x,   n );
+      casez ( inst ) //          uop        jal     raddr0 raddr1 waddr wen imm_sel op1_sel  op2_sel  op3_sel  serialize  store
+        `RVI_INST_ADD:    cs( y, OP_ADD,    j_n,    rs1,   rs2,   rd,   y,  '0,     op1_rf,  op2_rf,  op3_x,   n,         n );
+        `RVI_INST_FADD_S: cs( y, OP_FADD_S, j_n,    rs1,   rs2,   rd,   y,  '0,     op1_rf,  op2_rf,  op3_x,   n,         n );
+        `RVI_INST_FSUB_S: cs( y, OP_FSUB_S, j_n,    rs1,   rs2,   rd,   y,  '0,     op1_rf,  op2_rf,  op3_x,   n,         n );
+        `RVI_INST_SUB:    cs( y, OP_SUB,    j_n,    rs1,   rs2,   rd,   y,  '0,     op1_rf,  op2_rf,  op3_x,   n,         n );
+        `RVI_INST_AND:    cs( y, OP_AND,    j_n,    rs1,   rs2,   rd,   y,  '0,     op1_rf,  op2_rf,  op3_x,   n,         n );
+        `RVI_INST_OR:     cs( y, OP_OR,     j_n,    rs1,   rs2,   rd,   y,  '0,     op1_rf,  op2_rf,  op3_x,   n,         n );
+        `RVI_INST_XOR:    cs( y, OP_XOR,    j_n,    rs1,   rs2,   rd,   y,  '0,     op1_rf,  op2_rf,  op3_x,   n,         n );
+        `RVI_INST_SLT:    cs( y, OP_SLT,    j_n,    rs1,   rs2,   rd,   y,  '0,     op1_rf,  op2_rf,  op3_x,   n,         n );
+        `RVI_INST_SLTU:   cs( y, OP_SLTU,   j_n,    rs1,   rs2,   rd,   y,  '0,     op1_rf,  op2_rf,  op3_x,   n,         n );
+        `RVI_INST_SRA:    cs( y, OP_SRA,    j_n,    rs1,   rs2,   rd,   y,  '0,     op1_rf,  op2_rf,  op3_x,   n,         n );
+        `RVI_INST_SRL:    cs( y, OP_SRL,    j_n,    rs1,   rs2,   rd,   y,  '0,     op1_rf,  op2_rf,  op3_x,   n,         n );
+        `RVI_INST_SLL:    cs( y, OP_SLL,    j_n,    rs1,   rs2,   rd,   y,  '0,     op1_rf,  op2_rf,  op3_x,   n,         n );
 
-        `RVI_INST_ADDI:   cs( y, OP_ADD,    j_n,    rs1,   rx,    rd,   y,  IMM_I,  op1_rf,  op2_imm, op3_x,   n );
-        `RVI_INST_ANDI:   cs( y, OP_AND,    j_n,    rs1,   rx,    rd,   y,  IMM_I,  op1_rf,  op2_imm, op3_x,   n );
-        `RVI_INST_ORI:    cs( y, OP_OR,     j_n,    rs1,   rx,    rd,   y,  IMM_I,  op1_rf,  op2_imm, op3_x,   n );
-        `RVI_INST_XORI:   cs( y, OP_XOR,    j_n,    rs1,   rx,    rd,   y,  IMM_I,  op1_rf,  op2_imm, op3_x,   n );
-        `RVI_INST_SLTI:   cs( y, OP_SLT,    j_n,    rs1,   rx,    rd,   y,  IMM_I,  op1_rf,  op2_imm, op3_x,   n );
-        `RVI_INST_SLTIU:  cs( y, OP_SLTU,   j_n,    rs1,   rx,    rd,   y,  IMM_I,  op1_rf,  op2_imm, op3_x,   n );
-        `RVI_INST_SRAI:   cs( y, OP_SRA,    j_n,    rs1,   rx,    rd,   y,  IMM_I,  op1_rf,  op2_imm, op3_x,   n );
-        `RVI_INST_SRLI:   cs( y, OP_SRL,    j_n,    rs1,   rx,    rd,   y,  IMM_I,  op1_rf,  op2_imm, op3_x,   n );
-        `RVI_INST_SLLI:   cs( y, OP_SLL,    j_n,    rs1,   rx,    rd,   y,  IMM_I,  op1_rf,  op2_imm, op3_x,   n );
-        `RVI_INST_LUI:    cs( y, OP_LUI,    j_n,    rx,    rx,    rd,   y,  IMM_U,  op1_rf,  op2_imm, op3_x,   n );
-        `RVI_INST_AUIPC:  cs( y, OP_AUIPC,  j_n,    rx,    rx,    rd,   y,  IMM_U,  op1_rf,  op2_imm, op3_x,   n );
+        `RVI_INST_ADDI:   cs( y, OP_ADD,    j_n,    rs1,   rx,    rd,   y,  IMM_I,  op1_rf,  op2_imm, op3_x,   n,         n );
+        `RVI_INST_ANDI:   cs( y, OP_AND,    j_n,    rs1,   rx,    rd,   y,  IMM_I,  op1_rf,  op2_imm, op3_x,   n,         n );
+        `RVI_INST_ORI:    cs( y, OP_OR,     j_n,    rs1,   rx,    rd,   y,  IMM_I,  op1_rf,  op2_imm, op3_x,   n,         n );
+        `RVI_INST_XORI:   cs( y, OP_XOR,    j_n,    rs1,   rx,    rd,   y,  IMM_I,  op1_rf,  op2_imm, op3_x,   n,         n );
+        `RVI_INST_SLTI:   cs( y, OP_SLT,    j_n,    rs1,   rx,    rd,   y,  IMM_I,  op1_rf,  op2_imm, op3_x,   n,         n );
+        `RVI_INST_SLTIU:  cs( y, OP_SLTU,   j_n,    rs1,   rx,    rd,   y,  IMM_I,  op1_rf,  op2_imm, op3_x,   n,         n );
+        `RVI_INST_SRAI:   cs( y, OP_SRA,    j_n,    rs1,   rx,    rd,   y,  IMM_I,  op1_rf,  op2_imm, op3_x,   n,         n );
+        `RVI_INST_SRLI:   cs( y, OP_SRL,    j_n,    rs1,   rx,    rd,   y,  IMM_I,  op1_rf,  op2_imm, op3_x,   n,         n );
+        `RVI_INST_SLLI:   cs( y, OP_SLL,    j_n,    rs1,   rx,    rd,   y,  IMM_I,  op1_rf,  op2_imm, op3_x,   n,         n );
+        `RVI_INST_LUI:    cs( y, OP_LUI,    j_n,    rx,    rx,    rd,   y,  IMM_U,  op1_rf,  op2_imm, op3_x,   n,         n );
+        `RVI_INST_AUIPC:  cs( y, OP_AUIPC,  j_n,    rx,    rx,    rd,   y,  IMM_U,  op1_rf,  op2_imm, op3_x,   n,         n );
 
-        `RVI_INST_LB:     cs( y, OP_LB,     j_n,    rs1,   rx,    rd,   y,  IMM_I,  op1_rf,  op2_imm, op3_mem, n );
-        `RVI_INST_LH:     cs( y, OP_LH,     j_n,    rs1,   rx,    rd,   y,  IMM_I,  op1_rf,  op2_imm, op3_mem, n );
-        `RVI_INST_LW:     cs( y, OP_LW,     j_n,    rs1,   rx,    rd,   y,  IMM_I,  op1_rf,  op2_imm, op3_mem, n );
-        `RVI_INST_LBU:    cs( y, OP_LBU,    j_n,    rs1,   rx,    rd,   y,  IMM_I,  op1_rf,  op2_imm, op3_mem, n );
-        `RVI_INST_LHU:    cs( y, OP_LHU,    j_n,    rs1,   rx,    rd,   y,  IMM_I,  op1_rf,  op2_imm, op3_mem, n );
-        `RVI_INST_SB:     cs( y, OP_SB,     j_n,    rs1,   rs2,   rx,   n,  IMM_S,  op1_rf,  op2_imm, op3_mem, n );
-        `RVI_INST_SH:     cs( y, OP_SH,     j_n,    rs1,   rs2,   rx,   n,  IMM_S,  op1_rf,  op2_imm, op3_mem, n );
-        `RVI_INST_SW:     cs( y, OP_SW,     j_n,    rs1,   rs2,   rx,   n,  IMM_S,  op1_rf,  op2_imm, op3_mem, n );
-        `RVI_INST_FENCE:  cs( y, OP_ADD,    j_n,    5'b0,  5'b0,  5'b0, n,  '0,     op1_x,   op2_x,   op3_x,   n );
+        `RVI_INST_LB:     cs( y, OP_LB,     j_n,    rs1,   rx,    rd,   y,  IMM_I,  op1_rf,  op2_imm, op3_mem, n,         n );
+        `RVI_INST_LH:     cs( y, OP_LH,     j_n,    rs1,   rx,    rd,   y,  IMM_I,  op1_rf,  op2_imm, op3_mem, n,         n );
+        `RVI_INST_LW:     cs( y, OP_LW,     j_n,    rs1,   rx,    rd,   y,  IMM_I,  op1_rf,  op2_imm, op3_mem, n,         n );
+        `RVI_INST_LBU:    cs( y, OP_LBU,    j_n,    rs1,   rx,    rd,   y,  IMM_I,  op1_rf,  op2_imm, op3_mem, n,         n );
+        `RVI_INST_LHU:    cs( y, OP_LHU,    j_n,    rs1,   rx,    rd,   y,  IMM_I,  op1_rf,  op2_imm, op3_mem, n,         n );
+        `RVI_INST_SB:     cs( y, OP_SB,     j_n,    rs1,   rs2,   rx,   n,  IMM_S,  op1_rf,  op2_imm, op3_mem, n,         y );
+        `RVI_INST_SH:     cs( y, OP_SH,     j_n,    rs1,   rs2,   rx,   n,  IMM_S,  op1_rf,  op2_imm, op3_mem, n,         y );
+        `RVI_INST_SW:     cs( y, OP_SW,     j_n,    rs1,   rs2,   rx,   n,  IMM_S,  op1_rf,  op2_imm, op3_mem, n,         y );
+        `RVI_INST_FENCE:  cs( y, OP_ADD,    j_n,    5'b0,  5'b0,  5'b0, n,  '0,     op1_x,   op2_x,   op3_x,   n,         n );
 
-        `RVI_INST_JAL:    cs( y, OP_JAL,    j_jal,  rx,    rx,    rd,   y,  IMM_J,  op1_x,   op2_x,   op3_x,   n );
-        `RVI_INST_JALR:   cs( y, OP_JALR,   j_jalr, rs1,   rx,    rd,   y,  IMM_I,  op1_x,   op2_x,   op3_x,   n );
-        `RVI_INST_BEQ:    cs( y, OP_BEQ,    j_n,    rs1,   rs2,   rx,   n,  IMM_B,  op1_rf,  op2_rf,  op3_br,  n );
-        `RVI_INST_BNE:    cs( y, OP_BNE,    j_n,    rs1,   rs2,   rx,   n,  IMM_B,  op1_rf,  op2_rf,  op3_br,  n );
-        `RVI_INST_BLT:    cs( y, OP_BLT,    j_n,    rs1,   rs2,   rx,   n,  IMM_B,  op1_rf,  op2_rf,  op3_br,  n );
-        `RVI_INST_BGE:    cs( y, OP_BGE,    j_n,    rs1,   rs2,   rx,   n,  IMM_B,  op1_rf,  op2_rf,  op3_br,  n );
-        `RVI_INST_BLTU:   cs( y, OP_BLTU,   j_n,    rs1,   rs2,   rx,   n,  IMM_B,  op1_rf,  op2_rf,  op3_br,  n );
-        `RVI_INST_BGEU:   cs( y, OP_BGEU,   j_n,    rs1,   rs2,   rx,   n,  IMM_B,  op1_rf,  op2_rf,  op3_br,  n );
+        `RVI_INST_JAL:    cs( y, OP_JAL,    j_jal,  rx,    rx,    rd,   y,  IMM_J,  op1_x,   op2_x,   op3_x,   n,         n );
+        `RVI_INST_JALR:   cs( y, OP_JALR,   j_jalr, rs1,   rx,    rd,   y,  IMM_I,  op1_x,   op2_x,   op3_x,   n,         n );
+        `RVI_INST_BEQ:    cs( y, OP_BEQ,    j_n,    rs1,   rs2,   rx,   n,  IMM_B,  op1_rf,  op2_rf,  op3_br,  n,         n );
+        `RVI_INST_BNE:    cs( y, OP_BNE,    j_n,    rs1,   rs2,   rx,   n,  IMM_B,  op1_rf,  op2_rf,  op3_br,  n,         n );
+        `RVI_INST_BLT:    cs( y, OP_BLT,    j_n,    rs1,   rs2,   rx,   n,  IMM_B,  op1_rf,  op2_rf,  op3_br,  n,         n );
+        `RVI_INST_BGE:    cs( y, OP_BGE,    j_n,    rs1,   rs2,   rx,   n,  IMM_B,  op1_rf,  op2_rf,  op3_br,  n,         n );
+        `RVI_INST_BLTU:   cs( y, OP_BLTU,   j_n,    rs1,   rs2,   rx,   n,  IMM_B,  op1_rf,  op2_rf,  op3_br,  n,         n );
+        `RVI_INST_BGEU:   cs( y, OP_BGEU,   j_n,    rs1,   rs2,   rx,   n,  IMM_B,  op1_rf,  op2_rf,  op3_br,  n,         n );
 
-        `RVI_INST_CSRRW:  cs( y, OP_CSRRW,  j_n,    rs1,   rx,    rd,   y,  IMM_I,  op1_rf,  op2_imm, op3_x,   y );
-        `RVI_INST_CSRRS:  cs( y, OP_CSRRS,  j_n,    rs1,   rx,    rd,   y,  IMM_I,  op1_rf,  op2_imm, op3_x,   y );
-        `RVI_INST_CSRRC:  cs( y, OP_CSRRC,  j_n,    rs1,   rx,    rd,   y,  IMM_I,  op1_rf,  op2_imm, op3_x,   y );
-        `RVI_INST_CSRRWI: cs( y, OP_CSRRWI, j_n,    rx,    rx,    rd,   y,  IMM_I,  op1_imm, op2_imm, op3_x,   y );
-        `RVI_INST_CSRRSI: cs( y, OP_CSRRSI, j_n,    rx,    rx,    rd,   y,  IMM_I,  op1_imm, op2_imm, op3_x,   y );
-        `RVI_INST_CSRRCI: cs( y, OP_CSRRCI, j_n,    rx,    rx,    rd,   y,  IMM_I,  op1_imm, op2_imm, op3_x,   y );
+        `RVI_INST_CSRRW:  cs( y, OP_CSRRW,  j_n,    rs1,   rx,    rd,   y,  IMM_I,  op1_rf,  op2_imm, op3_x,   y,         n );
+        `RVI_INST_CSRRS:  cs( y, OP_CSRRS,  j_n,    rs1,   rx,    rd,   y,  IMM_I,  op1_rf,  op2_imm, op3_x,   y,         n );
+        `RVI_INST_CSRRC:  cs( y, OP_CSRRC,  j_n,    rs1,   rx,    rd,   y,  IMM_I,  op1_rf,  op2_imm, op3_x,   y,         n );
+        `RVI_INST_CSRRWI: cs( y, OP_CSRRWI, j_n,    rx,    rx,    rd,   y,  IMM_I,  op1_imm, op2_imm, op3_x,   y,         n );
+        `RVI_INST_CSRRSI: cs( y, OP_CSRRSI, j_n,    rx,    rx,    rd,   y,  IMM_I,  op1_imm, op2_imm, op3_x,   y,         n );
+        `RVI_INST_CSRRCI: cs( y, OP_CSRRCI, j_n,    rx,    rx,    rd,   y,  IMM_I,  op1_imm, op2_imm, op3_x,   y,         n );
 
-        `RVI_INST_ECALL:  cs( y, OP_ECALL,  j_n,    rx,    rx,    rx,   n,  '0,     op1_rf,  op2_rf,  op3_x,   y );
-        `RVI_INST_EBREAK: cs( y, OP_EBREAK, j_n,    rx,    rx,    rx,   n,  '0,     op1_rf,  op2_rf,  op3_x,   y );
-        `RVI_INST_MRET:   cs( y, OP_MRET,   j_n,    rx,    rx,    rx,   n,  '0,     op1_rf,  op2_rf,  op3_x,   y );
+        `RVI_INST_ECALL:  cs( y, OP_ECALL,  j_n,    rx,    rx,    rx,   n,  '0,     op1_rf,  op2_rf,  op3_x,   y,         n );
+        `RVI_INST_EBREAK: cs( y, OP_EBREAK, j_n,    rx,    rx,    rx,   n,  '0,     op1_rf,  op2_rf,  op3_x,   y,         n );
+        `RVI_INST_MRET:   cs( y, OP_MRET,   j_n,    rx,    rx,    rx,   n,  '0,     op1_rf,  op2_rf,  op3_x,   y,         n );
 
-        `RVM_INST_MUL:    cs( y, OP_MUL,    j_n,    rs1,   rs2,   rd,   y,  '0,     op1_rf, op2_rf,  op3_x,   n );
-        `RVM_INST_MULH:   cs( y, OP_MULH,   j_n,    rs1,   rs2,   rd,   y,  '0,     op1_rf,  op2_rf,  op3_x,   n );
-        `RVM_INST_MULHU:  cs( y, OP_MULHU,  j_n,    rs1,   rs2,   rd,   y,  '0,     op1_rf,  op2_rf,  op3_x,   n );
-        `RVM_INST_MULHSU: cs( y, OP_MULHSU, j_n,    rs1,   rs2,   rd,   y,  '0,     op1_rf,  op2_rf,  op3_x,   n );
-        `RVM_INST_DIV:    cs( y, OP_DIV,    j_n,    rs1,   rs2,   rd,   y,  '0,     op1_rf,  op2_rf,  op3_x,   n );
-        `RVM_INST_DIVU:   cs( y, OP_DIVU,   j_n,    rs1,   rs2,   rd,   y,  '0,     op1_rf,  op2_rf,  op3_x,   n );
-        `RVM_INST_REM:    cs( y, OP_REM,    j_n,    rs1,   rs2,   rd,   y,  '0,     op1_rf,  op2_rf,  op3_x,   n );
-        `RVM_INST_REMU:   cs( y, OP_REMU,   j_n,    rs1,   rs2,   rd,   y,  '0,     op1_rf,  op2_rf,  op3_x,   n );
-        default:          cs( n, 'x,        j_n,    'x,    'x,    'x,   n,  'x,     'x,      'x,      'x,      n );
+        `RVM_INST_MUL:    cs( y, OP_MUL,    j_n,    rs1,   rs2,   rd,   y,  '0,     op1_rf, op2_rf,  op3_x,   n,         n );
+        `RVM_INST_MULH:   cs( y, OP_MULH,   j_n,    rs1,   rs2,   rd,   y,  '0,     op1_rf,  op2_rf,  op3_x,   n,         n );
+        `RVM_INST_MULHU:  cs( y, OP_MULHU,  j_n,    rs1,   rs2,   rd,   y,  '0,     op1_rf,  op2_rf,  op3_x,   n,         n );
+        `RVM_INST_MULHSU: cs( y, OP_MULHSU, j_n,    rs1,   rs2,   rd,   y,  '0,     op1_rf,  op2_rf,  op3_x,   n,         n );
+        `RVM_INST_DIV:    cs( y, OP_DIV,    j_n,    rs1,   rs2,   rd,   y,  '0,     op1_rf,  op2_rf,  op3_x,   n,         n );
+        `RVM_INST_DIVU:   cs( y, OP_DIVU,   j_n,    rs1,   rs2,   rd,   y,  '0,     op1_rf,  op2_rf,  op3_x,   n,         n );
+        `RVM_INST_REM:    cs( y, OP_REM,    j_n,    rs1,   rs2,   rd,   y,  '0,     op1_rf,  op2_rf,  op3_x,   n,         n );
+        `RVM_INST_REMU:   cs( y, OP_REMU,   j_n,    rs1,   rs2,   rd,   y,  '0,     op1_rf,  op2_rf,  op3_x,   n,         n );
+        default:          cs( n, 'x,        j_n,    'x,    'x,    'x,   n,  'x,     'x,      'x,      'x,      n,         n );
       endcase
     end
   endgenerate
