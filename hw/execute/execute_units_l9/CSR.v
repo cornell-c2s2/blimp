@@ -2,9 +2,6 @@
 // CSR.v
 //========================================================================
 // Execute unit for CSR and system instructions
-//
-// Author: Emily Lan
-// Last updated: 11/04/25
 //========================================================================
 
 `ifndef HW_EXECUTE_EXECUTE_VARIANTS_L9_CSR_V
