@@ -1,9 +1,8 @@
 //========================================================================
-// LoadStoreUnitL9.v
+// LoadStoreUnitL10.v
 //========================================================================
 // An execute unit for performing memory operations, with stores
-// buffered in a store queue until they commit (see
-// STORE_QUEUE_DESIGN.md)
+// buffered in a store queue until they commit
 //
 //  - Stores fill their store queue entry in stage 1 and complete without
 //    accessing memory
@@ -15,8 +14,8 @@
 //
 // The memory interface only issues reads.
 
-`ifndef HW_EXECUTE_EXECUTE_VARIANTS_L9_LOADSTOREUNITL9_V
-`define HW_EXECUTE_EXECUTE_VARIANTS_L9_LOADSTOREUNITL9_V
+`ifndef HW_EXECUTE_EXECUTE_VARIANTS_L10_LOADSTOREUNITL10_V
+`define HW_EXECUTE_EXECUTE_VARIANTS_L10_LOADSTOREUNITL10_V
 
 `include "defs/CSRDefs.v"
 `include "defs/UArch.v"
@@ -26,11 +25,14 @@
 `include "intf/MemIntf.v"
 `include "intf/StoreQueueIntf.v"
 `include "intf/X__WIntf.v"
+`include "hw/util/SeqAge.v"
+`include "intf/CommitNotif.v"
+`include "intf/SquashNotif.v"
 
 import CSRDefs::*;
 import UArch::*;
 
-module LoadStoreUnitL9 #(
+module LoadStoreUnitL10 #(
   parameter p_opaq_bits     = 8,
   parameter p_num_in_flight = 8
 )(
@@ -48,6 +50,18 @@ module LoadStoreUnitL9 #(
   //----------------------------------------------------------------------
 
   X__WIntf.X_intf W,
+
+  //----------------------------------------------------------------------
+  // Squash Interface
+  //----------------------------------------------------------------------
+
+  SquashNotif.sub squash,
+
+  //----------------------------------------------------------------------
+  // Commit Interface
+  //----------------------------------------------------------------------
+  
+  CommitNotif.sub commit,
 
   //----------------------------------------------------------------------
   // Memory Interface (reads only)
@@ -102,6 +116,7 @@ module LoadStoreUnitL9 #(
     logic                        resp;     // A memory response is expected
     logic                  [3:0] fwd_mask; // Lanes forwarded from stores
     logic                 [31:0] fwd_data; // Forwarded lanes
+    logic                        killed;   // Squashed: consume, don't write back
   } stage2_msg;
 
   //----------------------------------------------------------------------
@@ -118,6 +133,18 @@ module LoadStoreUnitL9 #(
   logic      stage2_push, stage2_pop, stage2_empty, stage2_full;
 
   logic W_xfer;
+
+  //----------------------------------------------------------------------
+  // Squashing
+  //----------------------------------------------------------------------
+
+  SeqAge seq_age (
+    .*
+  );
+
+  logic should_squash1;
+  assign should_squash1 = D_reg.val & squash.val &
+                          seq_age.is_older( squash.seq_num, D_reg.seq_num );
 
   // verilator lint_off ENUMVALUE
 
@@ -157,7 +184,7 @@ module LoadStoreUnitL9 #(
         sq_idx:   D.sq_idx,
         uop:      D.uop
       };
-    else if ( stage2_push )
+    else if ( stage2_push | should_squash1 )
       D_reg_next = '{
         val:      1'b0,
         pc:       '0,
@@ -253,7 +280,7 @@ module LoadStoreUnitL9 #(
   //----------------------------------------------------------------------
   // A store fills in the cycle it leaves stage 1
 
-  assign sq.fill_val  = D_reg.val & is_store & stage2_push;
+  assign sq.fill_val  = D_reg.val & is_store & stage2_push & !should_squash1;
   assign sq.fill_idx  = D_reg.sq_idx;
   assign sq.fill_addr = word_addr;
   assign sq.fill_strb = strb;
@@ -294,7 +321,7 @@ module LoadStoreUnitL9 #(
   assign mem.req_msg.addr   = { word_addr, 2'b00 };
   assign mem.req_msg.strb   = strb;
   assign mem.req_msg.data   = '0;
-  assign mem.req_val        = D_reg.val & need_mem & stage2_rdy;
+  assign mem.req_val        = D_reg.val & need_mem & stage2_rdy & !should_squash1;
 
   //----------------------------------------------------------------------
   // In-flight FIFO
@@ -315,7 +342,7 @@ module LoadStoreUnitL9 #(
   assign stage1_output.fwd_data = fwd_data;
 
   assign stage2_rdy  = !stage2_full;
-  assign stage2_push = D_reg.val & stage2_rdy & ( !need_mem | mem.req_rdy );
+  assign stage2_push = D_reg.val & stage2_rdy & ( !need_mem | mem.req_rdy ) & !should_squash1;
   assign D.rdy       = !D_reg.val | stage2_push;
 
   stage2_msg stage2_input;
@@ -534,4 +561,4 @@ module LoadStoreUnitL9 #(
 
 endmodule
 
-`endif // HW_EXECUTE_EXECUTE_VARIANTS_L9_LOADSTOREUNITL9_V
+`endif // HW_EXECUTE_EXECUTE_VARIANTS_L10_LOADSTOREUNITL10_V
