@@ -14,6 +14,7 @@
 `ifndef TEST_FL_MEM_INTF_TEST_SERVER_TWO_PORT_V
 `define TEST_FL_MEM_INTF_TEST_SERVER_TWO_PORT_V
 
+// verilator lint_off MULTIDRIVEN
 module MemIntfTestServer_2Port #(
   parameter type t_req_msg  = `MEM_REQ ( 8 ),
   parameter type t_resp_msg = `MEM_RESP( 8 ),
@@ -346,6 +347,7 @@ module MemIntfTestServer_2Port #(
     trace = {trace, $sformatf(" - %s > %s", req_linetrace, resp_linetrace)};
   endfunction
 
+// verilator lint_on MULTIDRIVEN
 endmodule
 
 `endif // TEST_FL_MEM_INTF_TEST_SERVER_TWO_PORT_V

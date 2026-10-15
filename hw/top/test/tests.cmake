@@ -14,6 +14,7 @@ set(BLIMP_VERSIONS
   BlimpV7
   BlimpV8
   BlimpV8_sp26
+  BlimpV9_csr
 )
 
 # ------------------------------------------------------------------------
@@ -22,6 +23,9 @@ set(BLIMP_VERSIONS
 
 set(FLProc_TESTS
   FLProc_test/FLProc_test.v
+  FLProc_test/FLProc_csr_test.v
+  FLProc_test/FLProc_trap_test.v
+  FLProc_test/FLProc_illegal_test.v
 )
 
 # ------------------------------------------------------------------------
@@ -264,4 +268,24 @@ set(BlimpV8_sp26_TESTS
 
   BlimpV8_sp26_test/BlimpV8_sp26_ALL_test.v
   BlimpV8_sp26_test/BlimpV8_sp26_debug_test.v
+)
+
+# ------------------------------------------------------------------------
+# BlimpV9_csr
+# ------------------------------------------------------------------------
+
+set(BlimpV9_csr_TESTS
+  BlimpV9_csr_test/BlimpV9_csr_csr_test.v
+  BlimpV9_csr_test/BlimpV9_csr_trap_test.v
+  BlimpV9_csr_test/BlimpV9_csr_illegal_test.v
+)
+
+# CMakeLists.txt declares these executables and the existing test-only
+# trap bridge after including this file. Attach the bridge at directory
+# completion so no changes to the common build logic are needed.
+cmake_language(DEFER CALL target_link_libraries
+  BlimpV9_csr_trap_test PRIVATE CSR_TRAP_TEST_TRACE
+)
+cmake_language(DEFER CALL target_link_libraries
+  BlimpV9_csr_illegal_test PRIVATE CSR_TRAP_TEST_TRACE
 )

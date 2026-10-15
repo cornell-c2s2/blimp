@@ -123,7 +123,14 @@ FLTrace FLProc::step()
   // Fetch the instruction
   uint32_t    binary = mem[pc];
   FLInst      inst( binary );
-  inst_name_t inst_name = inst.name();
+  inst_name_t inst_name;
+  try {
+    inst_name = inst.name();
+  }
+  catch ( const std::invalid_argument& ) {
+    // Unknown encodings fail lookup before reaching the switch below.
+    return take_trap( 2, binary );
+  }
   uint32_t    inst_pc   = pc;
 
   switch ( inst_name ) {
@@ -723,9 +730,16 @@ FLTrace FLProc::step()
                       inst.rd() != 0 );
     }
 
-    default:
-      std::string excp =
-          std::format( "Unknown instruction: '{}'", inst.mnemonic() );
-      throw std::invalid_argument( excp );
+    default: {
+      uint32_t old_mie = ( csrs.mstatus >> 3 ) & 1;
+      csrs.mepc    = inst_pc;
+      csrs.mcause  = 2;           // illegal instruction
+      csrs.mtval   = mem[inst_pc]; // the bad instruction word
+      csrs.mstatus = ( csrs.mstatus & ~0x00000088 )
+                  | ( old_mie << 7 )
+                  | 0x00001800;
+      pc = csrs.mtvec;
+      return FLTrace( inst_pc, true, 2 );
+    }
   }
 }

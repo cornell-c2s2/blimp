@@ -332,6 +332,19 @@ foreach(V_TEST_FILE_REL_PATH ${V_TEST_FILES})
   endforeach(BLIMP_VERSION)
 endforeach(V_TEST_FILE_REL_PATH)
 
+# Test-only trap bridge; the ISS and its legacy DPI remain unchanged.
+add_library(CSR_TRAP_TEST_TRACE STATIC hw/top/test/csr_trap_trace.cpp)
+target_link_libraries(CSR_TRAP_TEST_TRACE PRIVATE FL_PROC)
+target_compile_options(CSR_TRAP_TEST_TRACE PRIVATE
+  -Wall -Wextra -Wpedantic -Werror
+)
+foreach(CSR_TRAP_TEST
+  FLProc_trap_test
+  FLProc_illegal_test
+)
+  target_link_libraries(${CSR_TRAP_TEST} PRIVATE CSR_TRAP_TEST_TRACE)
+endforeach()
+
 #------------------------------------------------------------------------
 # List tests
 #------------------------------------------------------------------------
@@ -379,6 +392,18 @@ endforeach(APP_SUBDIR)
 add_executable(fl-sim fl/fl_sim.cpp)
 target_compile_options(fl-sim PRIVATE -Wall -Wextra -Wpedantic -Werror)
 target_link_libraries(fl-sim PRIVATE FL_PROC)
+add_executable(csr_trap_test fl/test/csr_trap_test.cpp)
+target_link_libraries(csr_trap_test PRIVATE FL_PROC)
+target_compile_options(csr_trap_test PRIVATE
+  -Wall -Wextra -Wpedantic -Werror -UNDEBUG
+)
+add_test(NAME fl/test/csr_trap_test COMMAND csr_trap_test)
+set_tests_properties(fl/test/csr_trap_test PROPERTIES
+  LABELS "FLProc"
+  TIMEOUT 20
+)
+add_dependencies(check csr_trap_test)
+add_dependencies(check-fl csr_trap_test)
 
 #------------------------------------------------------------------------
 # Add our SystemVerilog simulators
