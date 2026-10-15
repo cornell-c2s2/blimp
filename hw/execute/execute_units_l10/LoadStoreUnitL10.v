@@ -19,7 +19,7 @@
 
 `include "defs/CSRDefs.v"
 `include "defs/UArch.v"
-`include "hw/common/Fifo.v"
+`include "hw/execute/execute_units_l10/LSUInFlightQueueL10.v"
 `include "intf/CompletedStoreBufferIntf.v"
 `include "intf/D__XIntf.v"
 `include "intf/MemIntf.v"
@@ -133,6 +133,7 @@ module LoadStoreUnitL10 #(
   logic      stage2_push, stage2_pop, stage2_empty, stage2_full;
 
   logic W_xfer;
+  logic stage2_killed, stage2_done, stage2_input_killed;
 
   //----------------------------------------------------------------------
   // Squashing
@@ -172,7 +173,7 @@ module LoadStoreUnitL10 #(
 
     if ( D_xfer )
       D_reg_next = '{
-        val:      1'b1,
+        val:      !(squash.val & seq_age.is_older(squash.seq_num, D.seq_num)),
         pc:       D.pc,
         seq_num:  D.seq_num,
         op1:      D.op1,
@@ -340,14 +341,15 @@ module LoadStoreUnitL10 #(
   assign stage1_output.resp     = need_mem;
   assign stage1_output.fwd_mask = ( is_load ) ? fwd_cover : 4'b0;
   assign stage1_output.fwd_data = fwd_data;
+  assign stage1_output.killed   = should_squash1;
 
   assign stage2_rdy  = !stage2_full;
   assign stage2_push = D_reg.val & stage2_rdy & ( !need_mem | mem.req_rdy ) & !should_squash1;
-  assign D.rdy       = !D_reg.val | stage2_push;
+  assign D.rdy       = !D_reg.val | stage2_push | should_squash1;
 
   stage2_msg stage2_input;
 
-  Fifo #(
+  LSUInFlightQueueL10 #(
     .p_entry_bits ($bits(stage2_msg)),
     .p_depth      (p_num_in_flight) // Must be at least as long as memory pipeline
   ) stage2_fifo (
@@ -358,7 +360,11 @@ module LoadStoreUnitL10 #(
     .empty (stage2_empty),
     .full  (stage2_full),
     .wdata (stage1_output),
-    .rdata (stage2_input)
+    .rdata (stage2_input),
+    .wseq_num (stage1_output.seq_num),
+    .rdata_killed (stage2_input_killed),
+    .commit (commit),
+    .squash (squash)
   );
 
   //----------------------------------------------------------------------
@@ -379,7 +385,8 @@ module LoadStoreUnitL10 #(
         offset:   '0,
         resp:     1'b0,
         fwd_mask: '0,
-        fwd_data: '0
+        fwd_data: '0,
+        killed:   1'b0
       };
     else
       stage2_reg <= stage2_reg_next;
@@ -388,9 +395,10 @@ module LoadStoreUnitL10 #(
   always_comb begin
     W_xfer = W.val & W.rdy;
 
-    if ( stage2_pop )
+    if ( stage2_pop ) begin
       stage2_reg_next = stage2_input;
-    else if ( W_xfer )
+      stage2_reg_next.killed = stage2_input_killed;
+    end else if ( stage2_done )
       stage2_reg_next = '{
         val:      1'b0,
         pc:       '0,
@@ -402,10 +410,13 @@ module LoadStoreUnitL10 #(
         offset:   '0,
         resp:     1'b0,
         fwd_mask: '0,
-        fwd_data: '0
+        fwd_data: '0,
+        killed:   1'b0
       };
-    else
+    else begin
       stage2_reg_next = stage2_reg;
+      stage2_reg_next.killed = stage2_killed;
+    end
   end
   // verilator lint_on ENUMVALUE
 
@@ -489,9 +500,17 @@ module LoadStoreUnitL10 #(
     endcase
   end
 
-  assign mem.resp_rdy = stage2_reg.val & stage2_reg.resp & W.rdy;
-  assign W.val        = stage2_reg.val & ( !stage2_reg.resp | mem.resp_val );
-  assign stage2_pop   = ( W_xfer | !stage2_reg.val ) & !stage2_empty;
+  // Squashed reads still consume their response, independently of W.rdy.
+  // Stores and fully forwarded loads have no response to wait for.
+  assign stage2_killed = stage2_reg.killed | (stage2_reg.val & squash.val &
+                         seq_age.is_older(squash.seq_num, stage2_reg.seq_num));
+  assign mem.resp_rdy = stage2_reg.val & stage2_reg.resp &
+                        (stage2_killed | W.rdy);
+  assign W.val = stage2_reg.val & !stage2_killed &
+                 (!stage2_reg.resp | mem.resp_val);
+  assign stage2_done = W_xfer | (stage2_reg.val & stage2_killed &
+                               (!stage2_reg.resp | mem.resp_val));
+  assign stage2_pop = (stage2_done | !stage2_reg.val) & !stage2_empty;
 
   //----------------------------------------------------------------------
   // Linetracing
