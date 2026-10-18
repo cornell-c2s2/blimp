@@ -166,6 +166,7 @@ task test_case_fp_subnormal();
     end
 
     begin
+        //Merge conflict testing comment
       // recv('h0000_0010, 0, 5'h1, 32'h80000000, 1); // subnormal ≈ 6e−46
       // recv('h0000_0014, 1, 5'h2, 32'h80000000, 1); // 5e−45 subnormal
       //recv('0, 0, 5'h1, 32'h00e00000, 1); // 1.75 * (2^-126)
