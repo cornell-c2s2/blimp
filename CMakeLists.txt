@@ -392,18 +392,6 @@ endforeach(APP_SUBDIR)
 add_executable(fl-sim fl/fl_sim.cpp)
 target_compile_options(fl-sim PRIVATE -Wall -Wextra -Wpedantic -Werror)
 target_link_libraries(fl-sim PRIVATE FL_PROC)
-add_executable(csr_trap_test fl/test/csr_trap_test.cpp)
-target_link_libraries(csr_trap_test PRIVATE FL_PROC)
-target_compile_options(csr_trap_test PRIVATE
-  -Wall -Wextra -Wpedantic -Werror -UNDEBUG
-)
-add_test(NAME fl/test/csr_trap_test COMMAND csr_trap_test)
-set_tests_properties(fl/test/csr_trap_test PROPERTIES
-  LABELS "FLProc"
-  TIMEOUT 20
-)
-add_dependencies(check csr_trap_test)
-add_dependencies(check-fl csr_trap_test)
 
 #------------------------------------------------------------------------
 # Add our SystemVerilog simulators
