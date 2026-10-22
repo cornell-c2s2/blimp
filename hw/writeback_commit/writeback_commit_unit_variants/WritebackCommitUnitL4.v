@@ -360,6 +360,7 @@ module WritebackCommitUnitL4 #(
   assign csr_notif.wdata     = rob_output.csr_wdata;
   assign csr_notif.exc_val   = rob_output.exc_val;
   assign csr_notif.exc_cause = rob_output.exc_cause;
+  assign csr_notif.tval      = 32'b0;
   assign csr_notif.pc        = rob_output.pc;
   assign csr_notif.seq_num   = commit.seq_num;
 

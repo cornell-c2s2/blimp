@@ -39,6 +39,7 @@ module ExQueue #(
     logic                 [31:0] csr_wdata;
     logic                        exc_val;
     logic                  [4:0] exc_cause;
+    logic                 [31:0] exc_tval;
   } msg_t;
 
   msg_t in_msg;
@@ -56,6 +57,7 @@ module ExQueue #(
   assign in_msg.csr_wdata = in.csr_wdata;
   assign in_msg.exc_val   = in.exc_val;
   assign in_msg.exc_cause = in.exc_cause;
+  assign in_msg.exc_tval  = in.exc_tval;
 
   assign out.pc      = out_msg.pc;
   assign out.waddr   = out_msg.waddr;
@@ -69,6 +71,7 @@ module ExQueue #(
   assign out.csr_wdata = out_msg.csr_wdata;
   assign out.exc_val   = out_msg.exc_val;
   assign out.exc_cause = out_msg.exc_cause;
+  assign out.exc_tval  = out_msg.exc_tval;
 
   //----------------------------------------------------------------------
   // Use a FIFO with bypassing to buffer the stream

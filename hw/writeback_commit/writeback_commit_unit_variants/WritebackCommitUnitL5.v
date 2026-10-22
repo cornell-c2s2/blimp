@@ -5,7 +5,7 @@
 // (including physical register specifiers), forwards CSR operations and
 // exceptions to the CSR file, and buffers stores: speculative stores in
 // a store queue, and committed stores in a completed store buffer that
-// retires them to memory (see STORE_QUEUE_DESIGN.md)
+// retires them to memory
 
 `ifndef HW_WRITEBACK_WRITEBACKCOMMITUNITVARIANTS_WRITEBACKCOMMITUNITL5_V
 `define HW_WRITEBACK_WRITEBACKCOMMITUNITVARIANTS_WRITEBACKCOMMITUNITL5_V
@@ -108,6 +108,7 @@ module WritebackCommitUnitL5 #(
   logic                 [31:0] Ex_csr_wdata [p_num_pipes-1:0];
   logic                        Ex_exc_val   [p_num_pipes-1:0];
   logic                  [4:0] Ex_exc_cause [p_num_pipes-1:0];
+  logic                 [31:0] Ex_exc_tval  [p_num_pipes-1:0];
 
   genvar i;
   generate
@@ -125,6 +126,7 @@ module WritebackCommitUnitL5 #(
       assign Ex_csr_wdata[i] = Ex[i].csr_wdata;
       assign Ex_exc_val[i]   = Ex[i].exc_val;
       assign Ex_exc_cause[i] = Ex[i].exc_cause;
+      assign Ex_exc_tval[i] = Ex[i].exc_tval;
       assign Ex[i].rdy     = Ex_rdy[i];
     end
   endgenerate
@@ -161,6 +163,7 @@ module WritebackCommitUnitL5 #(
   logic                 [31:0] Ex_csr_wdata_masked [p_num_pipes-1:0];
   logic                        Ex_exc_val_masked   [p_num_pipes-1:0];
   logic                  [4:0] Ex_exc_cause_masked [p_num_pipes-1:0];
+  logic                 [31:0] Ex_exc_tval_masked [p_num_pipes-1:0];
 
   generate
     for( i = 0; i < p_num_pipes; i = i + 1 ) begin: MASK
@@ -177,6 +180,7 @@ module WritebackCommitUnitL5 #(
       assign Ex_csr_wdata_masked[i] = Ex_csr_wdata[i] & {32{Ex_gnt[i]}};
       assign Ex_exc_val_masked[i]   = Ex_exc_val[i]   & Ex_gnt[i];
       assign Ex_exc_cause_masked[i] = Ex_exc_cause[i] & {5{Ex_gnt[i]}};
+      assign Ex_exc_tval_masked[i] = Ex_exc_tval[i] & {32{Ex_gnt[i]}};
     end
   endgenerate
 
@@ -193,6 +197,7 @@ module WritebackCommitUnitL5 #(
   logic                 [31:0] Ex_csr_wdata_sel;
   logic                        Ex_exc_val_sel;
   logic                  [4:0] Ex_exc_cause_sel;
+  logic                 [31:0] Ex_exc_tval_sel;
 
 `ifndef SYNTHESIS
   assign Ex_pc_sel      = Ex_pc_masked.or();
@@ -208,6 +213,7 @@ module WritebackCommitUnitL5 #(
   assign Ex_csr_wdata_sel = Ex_csr_wdata_masked.or();
   assign Ex_exc_val_sel   = Ex_exc_val_masked.or();
   assign Ex_exc_cause_sel = Ex_exc_cause_masked.or();
+  assign Ex_exc_tval_sel = Ex_exc_tval_masked.or();
 `else
   always_comb begin
     Ex_pc_sel      = '0;
@@ -223,6 +229,7 @@ module WritebackCommitUnitL5 #(
     Ex_csr_wdata_sel = '0;
     Ex_exc_val_sel   = '0;
     Ex_exc_cause_sel = '0;
+    Ex_exc_tval_sel = '0;
     
     for (int i = 0; i < p_num_pipes; i = i + 1) begin
       Ex_pc_sel      = Ex_pc_sel      | Ex_pc_masked[i];
@@ -238,6 +245,7 @@ module WritebackCommitUnitL5 #(
       Ex_csr_wdata_sel = Ex_csr_wdata_sel | Ex_csr_wdata_masked[i];
       Ex_exc_val_sel   = Ex_exc_val_sel   | Ex_exc_val_masked[i];
       Ex_exc_cause_sel = Ex_exc_cause_sel | Ex_exc_cause_masked[i];
+      Ex_exc_tval_sel = Ex_exc_tval_sel | Ex_exc_tval_masked[i];
     end
   end
 `endif // SYNTHESIS
@@ -266,6 +274,7 @@ module WritebackCommitUnitL5 #(
     logic                 [31:0] csr_wdata;
     logic                        exc_val;
     logic                  [4:0] exc_cause;
+    logic                 [31:0] exc_tval;
   } X_input;
 
   X_input X_reg;
@@ -285,7 +294,8 @@ module WritebackCommitUnitL5 #(
         csr_addr: '0,
         csr_wdata: '0,
         exc_val: 1'b0,
-        exc_cause: '0
+        exc_cause: '0,
+        exc_tval:  '0
       };
     else
       X_reg <= X_reg_next;
@@ -305,7 +315,8 @@ module WritebackCommitUnitL5 #(
         csr_addr:  Ex_csr_addr_sel,
         csr_wdata: Ex_csr_wdata_sel,
         exc_val:   Ex_exc_val_sel,
-        exc_cause: Ex_exc_cause_sel
+        exc_cause: Ex_exc_cause_sel,
+        exc_tval:  Ex_exc_tval_sel
       };
     else
       X_reg_next = '{ 
@@ -320,7 +331,8 @@ module WritebackCommitUnitL5 #(
         csr_addr: '0,
         csr_wdata: '0,
         exc_val: 1'b0,
-        exc_cause: '0
+        exc_cause: '0,
+        exc_tval:  '0
       };
   end
 
@@ -346,6 +358,7 @@ module WritebackCommitUnitL5 #(
     logic                 [31:0] csr_wdata;
     logic                        exc_val;
     logic                  [4:0] exc_cause;
+    logic                 [31:0] exc_tval;
   } t_rob_msg;
 
   t_rob_msg rob_input, rob_output;
@@ -360,6 +373,7 @@ module WritebackCommitUnitL5 #(
   assign rob_input.csr_wdata = X_reg.csr_wdata;
   assign rob_input.exc_val   = X_reg.exc_val;
   assign rob_input.exc_cause = X_reg.exc_cause;
+  assign rob_input.exc_tval = X_reg.exc_tval;
 
   localparam p_rob_depth = 2 ** p_seq_num_bits;
 
@@ -386,14 +400,8 @@ module WritebackCommitUnitL5 #(
   // Store Queue and Completed Store Buffer
   //----------------------------------------------------------------------
 
-  generate
-    if( sq.p_sq_idx_bits != $clog2( p_sq_depth ) ) begin: BAD_SQ_IDX_BITS
-      $error( "WritebackCommitUnitL5: StoreQueueIntf p_sq_idx_bits must be $clog2(p_sq_depth)" );
-    end
-  endgenerate
-
-  logic                      sq_deq_en;
   logic                      sq_deq_rdy;
+  logic                      sq_deq_val;
   logic [p_seq_num_bits-1:0] sq_deq_seq_num;
   logic               [31:2] sq_deq_addr;
   logic                [3:0] sq_deq_strb;
@@ -405,18 +413,18 @@ module WritebackCommitUnitL5 #(
   ) store_queue (
     .clk         (clk),
     .rst         (rst),
-    .sq          (sq),
+    .sq_intf     (sq),
     .squash      (squash),
     .commit      (local_commit),
-    .deq_en      (sq_deq_en),
     .deq_rdy     (sq_deq_rdy),
+    .deq_val     (sq_deq_val),
     .deq_seq_num (sq_deq_seq_num),
     .deq_addr    (sq_deq_addr),
     .deq_strb    (sq_deq_strb),
     .deq_data    (sq_deq_data)
   );
 
-  logic csb_push_en;
+  logic csb_push_val;
   logic csb_push_rdy;
 
   CompletedStoreBuffer #(
@@ -425,9 +433,9 @@ module WritebackCommitUnitL5 #(
   ) completed_store_buffer (
     .clk       (clk),
     .rst       (rst),
-    .csb       (csb),
+    .csb_intf  (csb),
     .mem       (store_mem),
-    .push_en   (csb_push_en),
+    .push_val  (csb_push_val),
     .push_addr (sq_deq_addr),
     .push_strb (sq_deq_strb),
     .push_data (sq_deq_data),
@@ -437,16 +445,19 @@ module WritebackCommitUnitL5 #(
   //----------------------------------------------------------------------
   // Commit
   //----------------------------------------------------------------------
-  // The ROB head is a store exactly when its sequence number matches the
-  // store queue head's. A store commits only if the completed store
-  // buffer can accept it; an excepting store is dequeued but dropped.
+  // store at ROB head can commit if CSB has space
+  //
+  // The ROB head is compared through rob.deq_ptr, not rob_deq_idx: they
+  // are equal whenever the ROB can dequeue, but rob_deq_idx depends on
+  // the dequeue enable (through the ROB bypass), which would form a
+  // combinational loop with commit_ok
 
   logic head_is_store;
 
-  assign head_is_store = sq_deq_rdy & ( sq_deq_seq_num == rob_deq_idx );
+  assign head_is_store = sq_deq_val & ( sq_deq_seq_num == rob.deq_ptr );
   assign commit_ok     = rob_deq_rdy & ( !head_is_store | csb_push_rdy );
-  assign sq_deq_en     = commit_ok & head_is_store;
-  assign csb_push_en   = sq_deq_en & !rob_output.exc_val;
+  assign sq_deq_rdy    = commit_ok & head_is_store;
+  assign csb_push_val  = sq_deq_rdy & !rob_output.exc_val;
 
   assign commit.val     = commit_ok;
   assign commit.seq_num = rob_deq_idx;
@@ -468,6 +479,7 @@ module WritebackCommitUnitL5 #(
   assign csr_notif.wdata     = rob_output.csr_wdata;
   assign csr_notif.exc_val   = rob_output.exc_val;
   assign csr_notif.exc_cause = rob_output.exc_cause;
+  assign csr_notif.tval      = rob_output.exc_tval;
   assign csr_notif.pc        = rob_output.pc;
   assign csr_notif.seq_num   = commit.seq_num;
 

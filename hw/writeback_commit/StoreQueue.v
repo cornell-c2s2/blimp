@@ -1,21 +1,14 @@
 //========================================================================
 // StoreQueue.v
 //========================================================================
-// Holds speculative (uncommitted) stores in program order.
+// Holds speculative stores
 //
-//  - Allocate: decode reserves the tail entry when a store issues
-//  - Fill:     the load-store unit writes the store's word address, byte
-//              lanes and lane-aligned data
-//  - Search:   per byte lane, the youngest filled entry for a word
-//  - Dequeue:  the head is removed when its store commits
+//  - Allocate: in decode, a store allocates an entry
+//  - Fill:     in LSU, a store fills entry with store data
+//  - Search:   in LSU, a load searches for stores
+//  - Dequeue:  in commit, a store is dequeued
 //  - Squash:   entries younger than the squashing instruction are removed
-//
-// Assumption: every filled entry is older than any load that searches,
-// and every unfilled entry is younger. This holds because all loads and
-// stores go through one in-order load-store unit, and a store fills in
-// the cycle it leaves stage 1.
-//
-// See STORE_QUEUE_DESIGN.md.
+//              (uses commit notif to determine relative age)
 
 `ifndef HW_WRITEBACK_STORE_QUEUE_V
 `define HW_WRITEBACK_STORE_QUEUE_V
@@ -38,7 +31,7 @@ module StoreQueue #(
   // Allocate, fill and search
   //----------------------------------------------------------------------
 
-  StoreQueueIntf.SQ_intf sq,
+  StoreQueueIntf.SQ_intf sq_intf,
 
   //----------------------------------------------------------------------
   // Squash
@@ -47,7 +40,7 @@ module StoreQueue #(
   SquashNotif.sub squash,
 
   //----------------------------------------------------------------------
-  // Commit (age reference for squashes)
+  // Commit
   //----------------------------------------------------------------------
 
   CommitNotif.sub commit,
@@ -56,8 +49,8 @@ module StoreQueue #(
   // Dequeue
   //----------------------------------------------------------------------
 
-  input  logic                      deq_en,
-  output logic                      deq_rdy,
+  input  logic                      deq_rdy,
+  output logic                      deq_val,
   output logic [p_seq_num_bits-1:0] deq_seq_num,
   output logic               [31:2] deq_addr,
   output logic                [3:0] deq_strb,
@@ -65,47 +58,29 @@ module StoreQueue #(
 );
 
   //----------------------------------------------------------------------
-  // Parameter checks
-  //----------------------------------------------------------------------
-
-  generate
-    if( sq.p_seq_num_bits != p_seq_num_bits ) begin: BAD_SEQ_NUM_BITS
-      $error( "StoreQueue: p_seq_num_bits does not match StoreQueueIntf" );
-    end
-    if( sq.p_sq_idx_bits != p_idx_bits ) begin: BAD_IDX_BITS
-      $error( "StoreQueue: StoreQueueIntf p_sq_idx_bits must be $clog2(p_depth)" );
-    end
-  endgenerate
-
-  //----------------------------------------------------------------------
   // State
   //----------------------------------------------------------------------
 
-  logic                      val     [p_depth];
-  logic                      filled  [p_depth];
-  logic [p_seq_num_bits-1:0] seq_num [p_depth];
-  logic               [31:2] addr    [p_depth];
-  logic                [3:0] strb    [p_depth];
-  logic               [31:0] data    [p_depth];
+  typedef struct packed {
+    logic                      val;
+    logic                      filled;
+    logic [p_seq_num_bits-1:0] seq_num;
+    logic               [31:2] addr;
+    logic                [3:0] strb;
+    logic               [31:0] data;
+  } t_sq_entry;
+
+  t_sq_entry sq [p_depth];
 
   logic [p_idx_bits-1:0] head;
   logic [p_idx_bits-1:0] tail;
 
   logic full;
-  assign full = val[tail];
-
-  function automatic logic [p_idx_bits-1:0] incr( input logic [p_idx_bits-1:0] ptr );
-    if( int'(ptr) == p_depth - 1 )
-      return '0;
-    else
-      return ptr + 1;
-  endfunction
+  assign full = sq[tail].val;
 
   //----------------------------------------------------------------------
   // Squash
   //----------------------------------------------------------------------
-  // Squashed entries are a contiguous youngest suffix, so the new tail is
-  // head + (number of surviving entries)
 
   SeqAge seq_age (
     .*
@@ -115,21 +90,21 @@ module StoreQueue #(
   logic [p_idx_bits-1:0] squash_tail;
 
   always_comb begin
-    int num_survive;
-    int new_tail;
+    for( int i = 0; i < p_depth; i = i + 1 )
+      removed[i] = squash.val & sq[i].val &
+                   seq_age.is_older( squash.seq_num, sq[i].seq_num );
+  end
 
-    num_survive = 0;
-    for( int i = 0; i < p_depth; i = i + 1 ) begin
-      removed[i] = squash.val & val[i] &
-                   seq_age.is_older( squash.seq_num, seq_num[i] );
-      if( val[i] & !removed[i] )
-        num_survive = num_survive + 1;
+  always_comb begin
+    int idx;
+    squash_tail = head;
+    for( int k = 0; k < p_depth; k = k + 1 ) begin
+      idx = int'(head) + k;
+      if( idx >= p_depth )
+        idx = idx - p_depth;
+      if( sq[idx].val & !removed[idx] )
+        squash_tail = ( idx == p_depth - 1 ) ? 0 : p_idx_bits'(idx + 1);
     end
-
-    new_tail = int'(head) + num_survive;
-    if( new_tail >= p_depth )
-      new_tail = new_tail - p_depth;
-    squash_tail = p_idx_bits'(new_tail);
   end
 
   //----------------------------------------------------------------------
@@ -140,63 +115,55 @@ module StoreQueue #(
   logic alloc_xfer;
   logic fill_xfer;
 
-  assign deq_rdy   = val[head] & filled[head];
-  assign deq_xfer  = deq_en & deq_rdy;
+  assign deq_val   = sq[head].val & sq[head].filled;
+  assign deq_xfer  = deq_rdy & deq_val;
 
-  // Bypass: a slot freed by a dequeue is usable in the same cycle
-  assign sq.alloc_rdy = !full | deq_xfer;
-  assign sq.alloc_idx = tail;
+  // slot freed by dequeue is available immediately
+  assign sq_intf.alloc_rdy = !full | deq_xfer;
+  assign sq_intf.alloc_idx = tail;
 
-  // A squash drops a same-cycle allocation and fills of removed entries
-  assign alloc_xfer = sq.alloc_val & sq.alloc_rdy & !squash.val;
-  assign fill_xfer  = sq.fill_val & val[sq.fill_idx] & !removed[sq.fill_idx];
+  // squash prevents allocation of new entries and fills of removed entries
+  assign alloc_xfer = sq_intf.alloc_val & sq_intf.alloc_rdy & !squash.val;
+  assign fill_xfer  = sq_intf.fill_val & sq[sq_intf.fill_idx].val & !removed[sq_intf.fill_idx];
 
   always_ff @( posedge clk ) begin
     if( rst ) begin
       head <= '0;
       tail <= '0;
-      for( int i = 0; i < p_depth; i = i + 1 ) begin
-        val[i]     <= 1'b0;
-        filled[i]  <= 1'b0;
-        seq_num[i] <= '0;
-        addr[i]    <= '0;
-        strb[i]    <= '0;
-        data[i]    <= '0;
-      end
+      for( int i = 0; i < p_depth; i = i + 1 )
+        sq[i] <= '0;
     end else begin
-      // Squash
+      // squash
       for( int i = 0; i < p_depth; i = i + 1 ) begin
-        if( removed[i] )
-          val[i] <= 1'b0;
+        if( removed[i] ) sq[i].val <= 1'b0;
       end
 
-      // Fill
+      // fill
       if( fill_xfer ) begin
-        filled[sq.fill_idx] <= 1'b1;
-        addr[sq.fill_idx]   <= sq.fill_addr;
-        strb[sq.fill_idx]   <= sq.fill_strb;
-        data[sq.fill_idx]   <= sq.fill_data;
+        sq[sq_intf.fill_idx].filled <= 1'b1;
+        sq[sq_intf.fill_idx].addr   <= sq_intf.fill_addr;
+        sq[sq_intf.fill_idx].strb   <= sq_intf.fill_strb;
+        sq[sq_intf.fill_idx].data   <= sq_intf.fill_data;
       end
 
-      // Dequeue
+      // dequeue
       if( deq_xfer ) begin
-        val[head] <= 1'b0;
-        head      <= incr( head );
+        sq[head].val <= 1'b0;
+        head         <= ( int'(head) == p_depth - 1 ) ? 0 : head + 1;
       end
 
-      // Allocate (after dequeue: when full, the allocation reuses the
-      // slot freed by the dequeue, and its write wins)
+      // allocate
       if( alloc_xfer ) begin
-        val[tail]     <= 1'b1;
-        filled[tail]  <= 1'b0;
-        seq_num[tail] <= sq.alloc_seq_num;
+        sq[tail].val     <= 1'b1;
+        sq[tail].filled  <= 1'b0;
+        sq[tail].seq_num <= sq_intf.alloc_seq_num;
       end
 
-      // Tail
+      // tail update
       if( squash.val )
         tail <= squash_tail;
       else if( alloc_xfer )
-        tail <= incr( tail );
+        tail <= ( int'(tail) == p_depth - 1 ) ? 0 : tail + 1;
     end
   end
 
@@ -204,39 +171,42 @@ module StoreQueue #(
   // Dequeue outputs
   //----------------------------------------------------------------------
 
-  assign deq_seq_num = seq_num[head];
-  assign deq_addr    = addr[head];
-  assign deq_strb    = strb[head];
-  assign deq_data    = data[head];
+  assign deq_seq_num = sq[head].seq_num;
+  assign deq_addr    = sq[head].addr;
+  assign deq_strb    = sq[head].strb;
+  assign deq_data    = sq[head].data;
 
   //----------------------------------------------------------------------
   // Search
   //----------------------------------------------------------------------
 
-  logic eligible [p_depth];
+  logic        search_val [p_depth];
+  logic [31:2] entry_addr [p_depth];
+  logic  [3:0] entry_strb [p_depth];
+  logic [31:0] entry_data [p_depth];
 
   always_comb begin
-    for( int i = 0; i < p_depth; i = i + 1 )
-      eligible[i] = val[i] & filled[i];
+    for( int i = 0; i < p_depth; i = i + 1 ) begin
+      search_val[i] = sq[i].val & sq[i].filled;
+      entry_addr[i] = sq[i].addr;
+      entry_strb[i] = sq[i].strb;
+      entry_data[i] = sq[i].data;
+    end
   end
 
   StoreBufferSearch #(
     .p_depth    (p_depth),
     .p_ptr_bits (p_idx_bits)
   ) search (
-    .eligible    (eligible),
-    .addr        (addr),
-    .strb        (strb),
-    .data        (data),
+    .search_val  (search_val),
+    .addr        (entry_addr),
+    .strb        (entry_strb),
+    .data        (entry_data),
     .tail        (tail),
-    .search_addr (sq.search_addr),
-    .hit         (sq.search_hit),
-    .search_data (sq.search_data)
+    .search_addr (sq_intf.search_addr),
+    .hit         (sq_intf.search_hit),
+    .search_data (sq_intf.search_data)
   );
-
-  //----------------------------------------------------------------------
-  // Unused signals
-  //----------------------------------------------------------------------
 
   logic [31:0] unused_squash_target;
   assign unused_squash_target = squash.target;
@@ -254,9 +224,9 @@ module StoreQueue #(
   );
     trace = "[";
     for( int i = 0; i < p_depth; i = i + 1 ) begin
-      if( !val[i] )
+      if( !sq[i].val )
         trace = {trace, "."};
-      else if( !filled[i] )
+      else if( !sq[i].filled )
         trace = {trace, "a"};
       else
         trace = {trace, "F"};

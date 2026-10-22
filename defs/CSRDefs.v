@@ -31,8 +31,15 @@ package CSRDefs;
   // mcause exception codes (interrupt bit clear)
 
   // verilator lint_off UNUSEDPARAM
-  parameter logic [4:0] EXC_BREAKPOINT = 5'd3;
-  parameter logic [4:0] EXC_ECALL_M    = 5'd11;
+  parameter logic [4:0] EXC_INST_MISALIGNED    = 5'd0;
+  parameter logic [4:0] EXC_INST_ACCESS_FAULT  = 5'd1;
+  parameter logic [4:0] EXC_ILLEGAL_INST       = 5'd2;
+  parameter logic [4:0] EXC_BREAKPOINT         = 5'd3;
+  parameter logic [4:0] EXC_LOAD_MISALIGNED    = 5'd4;
+  parameter logic [4:0] EXC_LOAD_ACCESS_FAULT  = 5'd5;
+  parameter logic [4:0] EXC_STORE_MISALIGNED   = 5'd6;
+  parameter logic [4:0] EXC_STORE_ACCESS_FAULT = 5'd7;
+  parameter logic [4:0] EXC_ECALL_M            = 5'd11;
   // verilator lint_on UNUSEDPARAM
 
   // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -

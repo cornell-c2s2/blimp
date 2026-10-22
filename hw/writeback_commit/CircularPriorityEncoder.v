@@ -5,9 +5,6 @@
 // ptr - 1 and wrapping around (ptr - 1, ptr - 2, ..., ptr), the first set
 // bit of the input is selected. With ptr as a circular buffer's tail,
 // this selects the youngest entry.
-//
-// All pointer arithmetic wraps modulo p_width, so p_width need not be a
-// power of 2.
 
 `ifndef HW_WRITEBACK_CIRCULAR_PRIORITY_ENCODER_V
 `define HW_WRITEBACK_CIRCULAR_PRIORITY_ENCODER_V
@@ -45,7 +42,6 @@ module CircularPriorityEncoder #(
         found = 1'b0;
 
         for( int k = 0; k < p_width; k = k + 1 ) begin
-          // Index k positions below ptr - 1, wrapped modulo p_width
           idx = int'(ptr) - 1 - k;
           if( idx < 0 )
             idx = idx + p_width;

@@ -197,8 +197,7 @@ module DecodeIssueUnitL7 #(
   //----------------------------------------------------------------------
   // Store queue allocation
   //----------------------------------------------------------------------
-  // A store allocates the store queue's tail entry when it issues (the
-  // same gating as register allocation), and carries the entry's index
+  // A store allocates the store queue's tail entry when it issues
 
   assign sq.alloc_val     = X_xfer & decoder_store & !should_squash;
   assign sq.alloc_seq_num = F_reg.seq_num;

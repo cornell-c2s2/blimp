@@ -163,6 +163,7 @@ module ControlFlowUnitL6 (
   assign W.csr_wdata = 32'b0;
   assign W.exc_val   = 1'b0;
   assign W.exc_cause = 5'b0;
+  assign W.exc_tval  = 32'b0;
 
   //----------------------------------------------------------------------
   // Assign remaining signals

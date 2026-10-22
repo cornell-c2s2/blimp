@@ -26,6 +26,7 @@ interface CSRNotif
   logic               [31:0] wdata;
   logic                      exc_val;
   logic                [4:0] exc_cause;
+  logic               [31:0] tval;
   logic               [31:0] pc;
   logic [p_seq_num_bits-1:0] seq_num;
 
@@ -41,6 +42,7 @@ interface CSRNotif
     output wdata,
     output exc_val,
     output exc_cause,
+    output tval,
     output pc,
     output seq_num
   );
@@ -53,6 +55,7 @@ interface CSRNotif
     input wdata,
     input exc_val,
     input exc_cause,
+    input tval,
     input pc,
     input seq_num
   );

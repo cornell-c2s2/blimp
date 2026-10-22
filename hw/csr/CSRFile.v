@@ -112,7 +112,7 @@ module CSRFile (
         mepc        <= csr_notif.pc[31:2];
         mcause_int  <= 1'b0;
         mcause_code <= csr_notif.exc_cause;
-        mtval       <= '0;
+        mtval       <= csr_notif.tval;
         mpie        <= mie;
         mie         <= 1'b0;
       end

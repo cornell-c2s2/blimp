@@ -47,6 +47,7 @@ interface X__WIntf
   logic [31:0] csr_wdata;
   logic        exc_val;
   logic  [4:0] exc_cause;
+  logic [31:0] exc_tval;
 
   // verilator lint_on UNUSEDSIGNAL
   // verilator lint_on UNDRIVEN
@@ -75,7 +76,8 @@ interface X__WIntf
     output csr_addr,
     output csr_wdata,
     output exc_val,
-    output exc_cause
+    output exc_cause,
+    output exc_tval
   );
 
   modport W_intf (
@@ -98,7 +100,8 @@ interface X__WIntf
     input  csr_addr,
     input  csr_wdata,
     input  exc_val,
-    input  exc_cause
+    input  exc_cause,
+    input  exc_tval
   );
 
 endinterface

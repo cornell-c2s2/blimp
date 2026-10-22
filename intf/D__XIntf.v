@@ -50,7 +50,7 @@ interface D__XIntf
   // Added in v4
   op3_t op3;
 
-  // Store queue entry of a store (only meaningful for stores)
+  // Store queue entry index
   // verilator lint_off UNDRIVEN
   logic [p_sq_idx_bits-1:0] sq_idx;
   // verilator lint_on UNDRIVEN

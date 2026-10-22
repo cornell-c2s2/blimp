@@ -518,6 +518,7 @@ module IterativeMulDivRemL10 (
   assign W.csr_wdata = 32'b0;
   assign W.exc_val   = 1'b0;
   assign W.exc_cause = 5'b0;
+  assign W.exc_tval  = 32'b0;
 
   always_comb begin
     case( D_reg.uop )

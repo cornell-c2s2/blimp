@@ -7,9 +7,9 @@
 //========================================================================
 
 `include "defs/UArch.v"
-`include "hw/execute/execute_units_l8/CSR.v"
+`include "hw/execute/execute_units_l9/CSR.v"
 `include "intf/CSRIntf.v"
-`include "hw/execute/execute_units_l8/CSRFile.v"
+`include "hw/csr/CSRFile.v"
 `include "test/fl/TestIstream.v"
 `include "test/fl/TestOstream.v"
 

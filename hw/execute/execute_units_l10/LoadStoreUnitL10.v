@@ -64,7 +64,7 @@ module LoadStoreUnitL10 #(
   CommitNotif.sub commit,
 
   //----------------------------------------------------------------------
-  // Memory Interface (reads only)
+  // Memory Interface
   //----------------------------------------------------------------------
 
   MemIntf.client  mem,
@@ -304,8 +304,8 @@ module LoadStoreUnitL10 #(
   genvar l;
   generate
     for( l = 0; l < 4; l = l + 1 ) begin: FWD_LANE
-      assign fwd_data[8*l +: 8] = ( sq.search_hit[l] ) ? sq.search_data[8*l +: 8]
-                                                       : csb.search_data[8*l +: 8];
+      assign fwd_data[8*l+7 : 8*l] = ( sq.search_hit[l] ) ? sq.search_data[8*l+7 : 8*l]
+                                                       : csb.search_data[8*l+7 : 8*l];
     end
   endgenerate
 
@@ -430,8 +430,8 @@ module LoadStoreUnitL10 #(
 
   generate
     for( l = 0; l < 4; l = l + 1 ) begin: MERGE_LANE
-      assign merged_data[8*l +: 8] = ( stage2_reg.fwd_mask[l] ) ? stage2_reg.fwd_data[8*l +: 8]
-                                                                : mem.resp_msg.data[8*l +: 8];
+      assign merged_data[8*l+7 : 8*l] = ( stage2_reg.fwd_mask[l] ) ? stage2_reg.fwd_data[8*l+7 : 8*l]
+                                                                : mem.resp_msg.data[8*l+7 : 8*l];
     end
   endgenerate
 
@@ -485,6 +485,7 @@ module LoadStoreUnitL10 #(
   assign W.csr_wdata        = 32'b0;
   assign W.exc_val          = 1'b0;
   assign W.exc_cause        = 5'b0;
+  assign W.exc_tval         = 32'b0;
 
   always_comb begin
     case( stage2_reg.uop )

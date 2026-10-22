@@ -1,17 +1,12 @@
 //========================================================================
 // CompletedStoreBuffer.v
 //========================================================================
-// Holds committed stores in commit order and retires them to memory.
-// Never squashed.
+// Holds committed stores
 //
-//  - Push:   a committing store enters at the tail
-//  - Retire: the head's write is sent to memory (at most one write
-//            outstanding); the head is dequeued when the write is
-//            acknowledged
-//  - Search: per byte lane, the youngest entry for a word. Entries stay
-//            searchable until their write is acknowledged
-//
-// See STORE_QUEUE_DESIGN.md.
+//  - Push:   in commit, a committed store is pushed
+//  - Retire: to memory, the head store is written
+//            and popped when the write is acknowledged
+//  - Search: in LSU, a load searches for stores
 
 `ifndef HW_WRITEBACK_COMPLETED_STORE_BUFFER_V
 `define HW_WRITEBACK_COMPLETED_STORE_BUFFER_V
@@ -32,7 +27,7 @@ module CompletedStoreBuffer #(
   // Search
   //----------------------------------------------------------------------
 
-  CompletedStoreBufferIntf.CSB_intf csb,
+  CompletedStoreBufferIntf.CSB_intf csb_intf,
 
   //----------------------------------------------------------------------
   // Retire (memory writes)
@@ -44,7 +39,7 @@ module CompletedStoreBuffer #(
   // Push
   //----------------------------------------------------------------------
 
-  input  logic        push_en,
+  input  logic        push_val,
   input  logic [31:2] push_addr,
   input  logic  [3:0] push_strb,
   input  logic [31:0] push_data,
@@ -57,32 +52,27 @@ module CompletedStoreBuffer #(
   // State
   //----------------------------------------------------------------------
 
-  logic        val  [p_depth];
-  logic [31:2] addr [p_depth];
-  logic  [3:0] strb [p_depth];
-  logic [31:0] data [p_depth];
+  typedef struct packed {
+    logic        val;
+    logic [31:2] addr;
+    logic  [3:0] strb;
+    logic [31:0] data;
+  } t_csb_entry;
+
+  t_csb_entry csb [p_depth];
 
   logic [p_ptr_bits-1:0] head;
   logic [p_ptr_bits-1:0] tail;
-  logic                  sent; // The head's write is outstanding
+  logic                  sent; // head is waiting for ack
 
   logic full, empty;
-  assign full  = val[tail];
-  assign empty = !val[head];
-
-  function automatic logic [p_ptr_bits-1:0] incr( input logic [p_ptr_bits-1:0] ptr );
-    if( int'(ptr) == p_depth - 1 )
-      return '0;
-    else
-      return ptr + 1;
-  endfunction
+  assign full  = csb[tail].val;
+  assign empty = !csb[head].val;
 
   //----------------------------------------------------------------------
   // Retire
   //----------------------------------------------------------------------
-  // When the buffer is empty, a store being pushed is sent in the same
-  // cycle (it is written at the head). The next write is only sent the
-  // cycle after an ack, as sent is still set in the ack cycle.
+  // when empty, a pushed store is sent in the same cycle
 
   logic pop;
   logic req_xfer;
@@ -90,7 +80,7 @@ module CompletedStoreBuffer #(
   assign mem.resp_rdy = 1'b1;
   assign pop          = sent & mem.resp_val;
 
-  assign mem.req_val = !sent & ( !empty | push_en );
+  assign mem.req_val = !sent & ( !empty | push_val );
   assign req_xfer    = mem.req_val & mem.req_rdy;
 
   always_comb begin
@@ -101,9 +91,9 @@ module CompletedStoreBuffer #(
       mem.req_msg.strb = push_strb;
       mem.req_msg.data = push_data;
     end else begin
-      mem.req_msg.addr = { addr[head], 2'b00 };
-      mem.req_msg.strb = strb[head];
-      mem.req_msg.data = data[head];
+      mem.req_msg.addr = { csb[head].addr, 2'b00 };
+      mem.req_msg.strb = csb[head].strb;
+      mem.req_msg.data = csb[head].data;
     end
   end
 
@@ -111,42 +101,36 @@ module CompletedStoreBuffer #(
   // Push and pop
   //----------------------------------------------------------------------
 
-  // Bypass: a slot freed by a pop is usable in the same cycle
+  // slot freed by pop is available immediately
   assign push_rdy = !full | pop;
 
   logic push_xfer;
-  assign push_xfer = push_en & push_rdy;
+  assign push_xfer = push_val & push_rdy;
 
   always_ff @( posedge clk ) begin
     if( rst ) begin
       head <= '0;
       tail <= '0;
       sent <= 1'b0;
-      for( int i = 0; i < p_depth; i = i + 1 ) begin
-        val[i]  <= 1'b0;
-        addr[i] <= '0;
-        strb[i] <= '0;
-        data[i] <= '0;
-      end
+      for( int i = 0; i < p_depth; i = i + 1 )
+        csb[i] <= '0;
     end else begin
-      // Pop (on ack)
+      // pop
       if( pop ) begin
-        val[head] <= 1'b0;
-        head      <= incr( head );
+        csb[head].val <= 1'b0;
+        head          <= ( int'(head) == p_depth - 1 ) ? 0 : head + 1;
       end
 
-      // Push (after pop: when full, the push reuses the slot freed by the
-      // pop, and its write wins)
+      // push
       if( push_xfer ) begin
-        val[tail]  <= 1'b1;
-        addr[tail] <= push_addr;
-        strb[tail] <= push_strb;
-        data[tail] <= push_data;
-        tail       <= incr( tail );
+        csb[tail].val  <= 1'b1;
+        csb[tail].addr <= push_addr;
+        csb[tail].strb <= push_strb;
+        csb[tail].data <= push_data;
+        tail           <= ( int'(tail) == p_depth - 1 ) ? 0 : tail + 1;
       end
 
-      // Outstanding write (req_xfer and pop are exclusive: req needs
-      // !sent, pop needs sent)
+      // sent update
       if( req_xfer )
         sent <= 1'b1;
       else if( pop )
@@ -158,23 +142,33 @@ module CompletedStoreBuffer #(
   // Search
   //----------------------------------------------------------------------
 
+  logic        search_val [p_depth];
+  logic [31:2] entry_addr [p_depth];
+  logic  [3:0] entry_strb [p_depth];
+  logic [31:0] entry_data [p_depth];
+
+  always_comb begin
+    for( int i = 0; i < p_depth; i = i + 1 ) begin
+      search_val[i] = csb[i].val;
+      entry_addr[i] = csb[i].addr;
+      entry_strb[i] = csb[i].strb;
+      entry_data[i] = csb[i].data;
+    end
+  end
+
   StoreBufferSearch #(
     .p_depth    (p_depth),
     .p_ptr_bits (p_ptr_bits)
   ) search (
-    .eligible    (val),
-    .addr        (addr),
-    .strb        (strb),
-    .data        (data),
+    .search_val  (search_val),
+    .addr        (entry_addr),
+    .strb        (entry_strb),
+    .data        (entry_data),
     .tail        (tail),
-    .search_addr (csb.search_addr),
-    .hit         (csb.search_hit),
-    .search_data (csb.search_data)
+    .search_addr (csb_intf.search_addr),
+    .hit         (csb_intf.search_hit),
+    .search_data (csb_intf.search_data)
   );
-
-  //----------------------------------------------------------------------
-  // Unused signals
-  //----------------------------------------------------------------------
 
   t_op                    unused_resp_op;
   logic [p_opaq_bits-1:0] unused_resp_opaque;
@@ -201,7 +195,7 @@ module CompletedStoreBuffer #(
   );
     trace = "[";
     for( int i = 0; i < p_depth; i = i + 1 ) begin
-      if( !val[i] )
+      if( !csb[i].val )
         trace = {trace, "."};
       else if( sent & ( p_ptr_bits'(i) == head ) )
         trace = {trace, "S"};

@@ -1,12 +1,8 @@
 //========================================================================
 // StoreBufferSearch.v
 //========================================================================
-// Searches a circular buffer of stores for a word address. For each of
-// the 4 byte lanes of the word, reports whether an eligible entry writes
-// that lane, and the byte from the youngest such entry (the nearest
-// before tail).
-//
-// Shared by the store queue and the completed store buffer.
+// Searches a circular buffer for a word address. For each of
+// the 4 bytes of the word, it returns the youngest matching byte.
 
 `ifndef HW_WRITEBACK_STORE_BUFFER_SEARCH_V
 `define HW_WRITEBACK_STORE_BUFFER_SEARCH_V
@@ -18,10 +14,10 @@ module StoreBufferSearch #(
   parameter p_ptr_bits = ( p_depth > 1 ) ? $clog2( p_depth ) : 1
 )(
   // Entries
-  input  logic                  eligible [p_depth],
-  input  logic           [31:2] addr     [p_depth],
-  input  logic            [3:0] strb     [p_depth],
-  input  logic           [31:0] data     [p_depth],
+  input  logic                  search_val [p_depth],
+  input  logic           [31:2] addr       [p_depth],
+  input  logic            [3:0] strb       [p_depth],
+  input  logic           [31:0] data       [p_depth],
   input  logic [p_ptr_bits-1:0] tail,
 
   // Search
@@ -39,7 +35,7 @@ module StoreBufferSearch #(
   genvar i, l;
   generate
     for( i = 0; i < p_depth; i = i + 1 ) begin: ADDR_MATCH
-      assign addr_match[i] = eligible[i] & ( addr[i] == search_addr );
+      assign addr_match[i] = search_val[i] & ( addr[i] == search_addr );
     end
   endgenerate
 
@@ -71,12 +67,12 @@ module StoreBufferSearch #(
         lane_data = 8'b0;
         for( int j = 0; j < p_depth; j = j + 1 ) begin
           if( sel[j] )
-            lane_data = lane_data | data[j][8*l +: 8];
+            lane_data = lane_data | data[j][8*l+7 : 8*l];
         end
       end
 
       assign hit[l]                = |match;
-      assign search_data[8*l +: 8] = lane_data;
+      assign search_data[8*l+7 : 8*l] = lane_data;
     end
   endgenerate
 

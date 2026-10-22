@@ -165,7 +165,7 @@ module InstDecoder (
         `RVI_INST_EBREAK: cs( y, OP_EBREAK, j_n,    rx,    rx,    rx,   n,  '0,     op1_rf,  op2_rf,  op3_x,   y,         n );
         `RVI_INST_MRET:   cs( y, OP_MRET,   j_n,    rx,    rx,    rx,   n,  '0,     op1_rf,  op2_rf,  op3_x,   y,         n );
 
-        `RVM_INST_MUL:    cs( y, OP_MUL,    j_n,    rs1,   rs2,   rd,   y,  '0,     op1_rf, op2_rf,  op3_x,   n,         n );
+        `RVM_INST_MUL:    cs( y, OP_MUL,    j_n,    rs1,   rs2,   rd,   y,  '0,     op1_rf,  op2_rf,  op3_x,   n,         n );
         `RVM_INST_MULH:   cs( y, OP_MULH,   j_n,    rs1,   rs2,   rd,   y,  '0,     op1_rf,  op2_rf,  op3_x,   n,         n );
         `RVM_INST_MULHU:  cs( y, OP_MULHU,  j_n,    rs1,   rs2,   rd,   y,  '0,     op1_rf,  op2_rf,  op3_x,   n,         n );
         `RVM_INST_MULHSU: cs( y, OP_MULHSU, j_n,    rs1,   rs2,   rd,   y,  '0,     op1_rf,  op2_rf,  op3_x,   n,         n );

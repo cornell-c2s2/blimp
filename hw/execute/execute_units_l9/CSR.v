@@ -133,6 +133,7 @@ typedef struct packed {
   assign W.csr_wdata = D_reg.op1; // rs1 value or zimm
   assign W.exc_val   = exc_val;
   assign W.exc_cause = exc_cause;
+  assign W.exc_tval  = 32'b0;
 
 //----------------------------------------------------------------------
 // Assign Remaining Signals
