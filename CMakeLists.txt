@@ -60,6 +60,7 @@ set(ASM_FILES
 )
 
 set(FL_PROC_FILES
+  fl/FLCSRfile.cpp
   fl/FLInst.cpp
   fl/FLMem.cpp
   fl/FLPeripheral.cpp
