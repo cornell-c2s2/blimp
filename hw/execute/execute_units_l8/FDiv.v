@@ -242,44 +242,43 @@ module FDiv (
     is_special_case = 1'b0;
     special_result  = 32'b0;
 
-    if(cur_state == UNPACK) begin // Don't think we need this check, as these values won't latch if we aren't in UNPAC
-            sn_dividend  = D_reg.op1[p_opwidth-1];
-            sn_divisor   = D_reg.op2[p_opwidth-1];
-            fr_dividend  = D_reg.op1[p_frwidth-1:0];
-            fr_divisor   = D_reg.op2[p_frwidth-1:0];
-            exp_dividend = D_reg.op1[p_opwidth-2 -: p_expwidth];
-            exp_divisor  = D_reg.op2[p_opwidth-2 -: p_expwidth];
-            sig_dividend = {1'b1, fr_dividend};
-            sig_divisor  = {1'b1, fr_divisor};
-            snR_unpack   = sn_dividend ^ sn_divisor;
-            
-            // CHECK FOR SPECIAL CASES
-            is_special_case = 1;
-            special_result = 0;
-            // 0 / 0 is NAN
-            if(exp_divisor == 0 && fr_divisor == 0 && exp_dividend == 0 && fr_dividend == 0) begin
-                special_result = 32'h7FC0_0000; // NaN is exp = 255, and mantissa != 0
-            end
-            // Divide by zero
-            else if(exp_divisor == 0 && fr_divisor == 0) begin // Check the raw fractioanl bits, before we add back the hidden 1
-                special_result = {snR_unpack, 8'd255, 23'b0}; // signed infinity
-            end // infinity divided by infinity
-            else if(exp_divisor == 255 && fr_divisor == 0 && exp_dividend == 255 && fr_dividend == 0) begin
-                special_result = 32'h7FC0_0000; // NaN 
-            end // infinity / x
-            else if(exp_dividend == 255 && fr_dividend == 0) begin
-              special_result = {snR_unpack, 8'd255, 23'b0}; // return SIGNED infinity
-            end // x / infinty -> signed zero
-            else if(exp_divisor == 255 && fr_divisor == 0) begin
-                special_result = {snR_unpack, 8'd0, 23'b0}; // signed zero
-            end // 0 / x
-            else if(exp_dividend == 0 && fr_dividend == 0) begin
-                special_result = {snR_unpack, 8'd0, 23'b0}; // signed zero
-            end
-            else begin
-              is_special_case = 0;
-            end
-
+    if(cur_state == UNPACK) begin // Don't think we need this check, as these values won't latch if we aren't in UNPACK
+      sn_dividend  = D_reg.op1[p_opwidth-1];
+      sn_divisor   = D_reg.op2[p_opwidth-1];
+      fr_dividend  = D_reg.op1[p_frwidth-1:0];
+      fr_divisor   = D_reg.op2[p_frwidth-1:0];
+      exp_dividend = D_reg.op1[p_opwidth-2 -: p_expwidth];
+      exp_divisor  = D_reg.op2[p_opwidth-2 -: p_expwidth];
+      sig_dividend = {1'b1, fr_dividend};
+      sig_divisor  = {1'b1, fr_divisor};
+      snR_unpack   = sn_dividend ^ sn_divisor;
+      
+      // CHECK FOR SPECIAL CASES
+      is_special_case = 1;
+      special_result = 0;
+      // 0 / 0 is NAN
+      if(exp_divisor == 0 && fr_divisor == 0 && exp_dividend == 0 && fr_dividend == 0) begin
+          special_result = 32'h7FC0_0000; // NaN is exp = 255, and mantissa != 0
+      end
+      // Divide by zero
+      else if(exp_divisor == 0 && fr_divisor == 0) begin // Check the raw fractioanl bits, before we add back the hidden 1
+          special_result = {snR_unpack, 8'd255, 23'b0}; // signed infinity
+      end // infinity divided by infinity
+      else if(exp_divisor == 255 && fr_divisor == 0 && exp_dividend == 255 && fr_dividend == 0) begin
+          special_result = 32'h7FC0_0000; // NaN 
+      end // infinity / x
+      else if(exp_dividend == 255 && fr_dividend == 0) begin
+        special_result = {snR_unpack, 8'd255, 23'b0}; // return SIGNED infinity
+      end // x / infinty -> signed zero
+      else if(exp_divisor == 255 && fr_divisor == 0) begin
+          special_result = {snR_unpack, 8'd0, 23'b0}; // signed zero
+      end // 0 / x
+      else if(exp_dividend == 0 && fr_dividend == 0) begin
+          special_result = {snR_unpack, 8'd0, 23'b0}; // signed zero
+      end
+      else begin
+        is_special_case = 0;
+      end
     end
   end
 
@@ -332,8 +331,7 @@ module FDiv (
     end
   end
 
-  // Our value should now be in between 0.5 and 2. If it is less than 1, we need to shift left by 1, and
-  // decrement our exponenet value by one.
+  // Our value should now be in between 0.5 and 2. If it is less than 1, we need to shift left by 1, and ecrement our exponenet value by one.
   // Our value is less than 1 if MSB is 0
   logic [31:0] round_result;
   FPRound fp_round_inst (
@@ -348,6 +346,7 @@ module FDiv (
 
   logic [25:0] next_quotient_normalized;
   logic [7:0]  next_exp_normalized;
+  
   always_comb begin 
     next_quotient_normalized = quotient;
     next_exp_normalized = exp_calc;
@@ -373,8 +372,6 @@ module FDiv (
   // TODO: fix wen, shouldn't just be 1
   // TODO: handle special cases (NaN/inf/zero/div0), they'd skip straight to DONE
   // TODO: hook into blimp (interface, writeback sel, ..? check what telse
-
-  // Exceptions
 
 
   //----------------------------------------------------------------------
