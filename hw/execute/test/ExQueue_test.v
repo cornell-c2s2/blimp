@@ -53,6 +53,7 @@ module ExQueueTestSuite #(
   ExQueue #(
     .p_depth (p_depth)
   ) dut (
+    .flush (1'b0),
     .in  (in_intf),
     .out (out_intf),
     .*

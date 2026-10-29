@@ -67,6 +67,7 @@ module WritebackCommitUnitL5 #(
   //----------------------------------------------------------------------
 
   SquashNotif.sub   squash,
+  SquashNotif.pub   branch_squash,
 
   //----------------------------------------------------------------------
   // Store Queue (allocate, fill, search)
@@ -130,6 +131,25 @@ module WritebackCommitUnitL5 #(
       assign Ex[i].rdy     = Ex_rdy[i];
     end
   endgenerate
+
+  logic Ex_redirect [p_num_pipes-1:0];
+  logic [31:0] Ex_redirect_target [p_num_pipes-1:0];
+  logic Ex_redirect_sel;
+  logic [31:0] Ex_redirect_target_sel;
+  for( genvar b = 0; b < p_num_pipes; b = b + 1 ) begin: REDIRECT_INPUT
+    assign Ex_redirect[b] = Ex[b].redirect;
+    assign Ex_redirect_target[b] = Ex[b].redirect_target;
+  end
+  always_comb begin
+    Ex_redirect_sel = 1'b0;
+    Ex_redirect_target_sel = '0;
+    for( int b = 0; b < p_num_pipes; b = b + 1 ) begin
+      if( Ex_gnt[b] ) begin
+        Ex_redirect_sel = Ex_redirect[b];
+        Ex_redirect_target_sel = Ex_redirect_target[b];
+      end
+    end
+  end
 
   logic  Ex_gnt [p_num_pipes-1:0];
 
@@ -269,6 +289,9 @@ module WritebackCommitUnitL5 #(
     logic                 [31:0] wdata;
     logic                        wen;
     logic [p_phys_addr_bits-1:0] ppreg;
+    logic [p_phys_addr_bits-1:0] preg;
+    logic                        redirect;
+    logic                 [31:0] redirect_target;
     logic                  [2:0] csr_cmd;
     logic                 [11:0] csr_addr;
     logic                 [31:0] csr_wdata;
@@ -281,7 +304,7 @@ module WritebackCommitUnitL5 #(
   X_input X_reg_next;
 
   always_ff @( posedge clk ) begin
-    if ( rst )
+    if ( rst | squash.val )
       X_reg <= '{ 
         val: 1'b0, 
         pc: '0,
@@ -290,6 +313,9 @@ module WritebackCommitUnitL5 #(
         wdata: '0, 
         wen: 1'b0,
         ppreg: '0,
+        preg: '0,
+        redirect: 1'b0,
+        redirect_target: '0,
         csr_cmd: '0,
         csr_addr: '0,
         csr_wdata: '0,
@@ -311,6 +337,9 @@ module WritebackCommitUnitL5 #(
         wdata:   Ex_wdata_sel,
         wen:     Ex_wen_sel,
         ppreg:   Ex_ppreg_sel,
+        preg:    Ex_preg_sel,
+        redirect: Ex_redirect_sel,
+        redirect_target: Ex_redirect_target_sel,
         csr_cmd:   Ex_csr_cmd_sel,
         csr_addr:  Ex_csr_addr_sel,
         csr_wdata: Ex_csr_wdata_sel,
@@ -327,6 +356,9 @@ module WritebackCommitUnitL5 #(
         wdata: '0, 
         wen: 1'b0,
         ppreg: '0,
+        preg: '0,
+        redirect: 1'b0,
+        redirect_target: '0,
         csr_cmd: '0,
         csr_addr: '0,
         csr_wdata: '0,
@@ -336,11 +368,11 @@ module WritebackCommitUnitL5 #(
       };
   end
 
-  assign complete.val     = Ex_val_sel;
+  assign complete.val     = Ex_val_sel & !squash.val;
   assign complete.seq_num = Ex_seq_num_sel;
   assign complete.waddr   = Ex_waddr_sel;
   assign complete.wdata   = Ex_wdata_sel;
-  assign complete.wen     = ( Ex_waddr_sel == '0 ) ? 0 : Ex_wen_sel;
+  assign complete.wen     = (Ex_waddr_sel != 0) & Ex_wen_sel & !Ex_exc_val_sel;
   assign complete.preg    = Ex_preg_sel;
 
   //----------------------------------------------------------------------
@@ -353,6 +385,9 @@ module WritebackCommitUnitL5 #(
     logic                 [31:0] wdata;
     logic                        wen;
     logic [p_phys_addr_bits-1:0] ppreg;
+    logic [p_phys_addr_bits-1:0] preg;
+    logic                        redirect;
+    logic                 [31:0] redirect_target;
     logic                  [2:0] csr_cmd;
     logic                 [11:0] csr_addr;
     logic                 [31:0] csr_wdata;
@@ -368,6 +403,9 @@ module WritebackCommitUnitL5 #(
   assign rob_input.wdata   = X_reg.wdata;
   assign rob_input.wen     = ( X_reg.waddr == '0 ) ? 0 : X_reg.wen;
   assign rob_input.ppreg   = X_reg.ppreg;
+  assign rob_input.preg    = X_reg.preg;
+  assign rob_input.redirect = X_reg.redirect;
+  assign rob_input.redirect_target = X_reg.redirect_target;
   assign rob_input.csr_cmd   = X_reg.csr_cmd;
   assign rob_input.csr_addr  = X_reg.csr_addr;
   assign rob_input.csr_wdata = X_reg.csr_wdata;
@@ -382,9 +420,11 @@ module WritebackCommitUnitL5 #(
   logic [p_seq_num_bits-1:0] rob_deq_idx;
 
   ROB #(
+    .p_bypass   (0),
     .p_depth    (p_rob_depth),
     .p_msg_bits ($bits(t_rob_msg))
   ) rob (
+    .flush   (squash.val),
     .ins_idx (X_reg.seq_num),
     .ins_msg (rob_input),
     .ins_en  (X_reg.val),
@@ -465,8 +505,13 @@ module WritebackCommitUnitL5 #(
   assign commit.pc    = rob_output.pc;
   assign commit.waddr = rob_output.waddr;
   assign commit.wdata = rob_output.wdata;
-  assign commit.wen   = rob_output.wen;
+  assign commit.wen   = rob_output.wen & !rob_output.exc_val;
   assign commit.ppreg = rob_output.ppreg;
+  assign commit.preg  = rob_output.preg;
+
+  assign branch_squash.val = commit.val & !rob_output.exc_val & rob_output.redirect;
+  assign branch_squash.target = rob_output.redirect_target;
+  assign branch_squash.seq_num = commit.seq_num;
 
   //----------------------------------------------------------------------
   // Commit-time action, applied to the CSR file
@@ -490,6 +535,7 @@ module WritebackCommitUnitL5 #(
   assign local_commit.wdata   = commit.wdata;
   assign local_commit.wen     = commit.wen;
   assign local_commit.ppreg   = commit.ppreg;
+  assign local_commit.preg    = commit.preg;
 
   //----------------------------------------------------------------------
   // Linetracing

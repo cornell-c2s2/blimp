@@ -30,7 +30,8 @@ import ISA::*;
 module DecodeIssueUnitL7 #(
   parameter p_num_pipes                                = 1,
   parameter p_num_phys_regs                            = 36,
-  parameter rv_op_vec [p_num_pipes-1:0] p_pipe_subsets = '{default: p_tinyrv1}
+  parameter rv_op_vec [p_num_pipes-1:0] p_pipe_subsets = '{default: p_tinyrv1},
+  parameter p_commit_recovery = 1
 ) (
   input  logic clk,
   input  logic rst,
@@ -106,7 +107,9 @@ module DecodeIssueUnitL7 #(
   always_comb begin
     F_xfer = F.val & F.rdy;
 
-    if ( F_xfer )
+    if( p_commit_recovery && squash_sub.val )
+      F_reg_next = '0;
+    else if ( F_xfer )
       F_reg_next = '{ val: 1'b1, inst: F.inst, pc: F.pc, seq_num: F.seq_num };
     else if ( X_xfer | should_squash )
       F_reg_next = '{ val: 1'b0, inst: '0, pc: '0, seq_num: '0 };
@@ -157,8 +160,10 @@ module DecodeIssueUnitL7 #(
   logic                        lookup_pending [2];
 
   RenameTable #(
-    .p_num_phys_regs (p_num_phys_regs)
+    .p_num_phys_regs (p_num_phys_regs),
+    .p_commit_recovery (p_commit_recovery)
   ) rename_table (
+    .recover        (squash_sub.val),
     .clk            (clk),
     .rst            (rst),
 
@@ -191,7 +196,8 @@ module DecodeIssueUnitL7 #(
   );
 
   logic stall_pending;
-  assign stall_pending = !alloc_rdy | lookup_pending[0] | lookup_pending[1] |
+  assign stall_pending = (decoder_wen & (decoder_waddr != 0) & !alloc_rdy) |
+                         lookup_pending[0] | lookup_pending[1] |
                          ( decoder_store & !sq.alloc_rdy );
 
   //----------------------------------------------------------------------
@@ -233,7 +239,8 @@ module DecodeIssueUnitL7 #(
       squash_sent <= 1'b1;
   end
 
-  assign squash_pub.val     = (decoder_jal != 0) & F_reg.val & !squash_sent & !stall_pending;
+  assign squash_pub.val     = !p_commit_recovery & (decoder_jal != 0) &
+                              F_reg.val & !squash_sent & !stall_pending;
   assign squash_pub.target  = jump_target;
   assign squash_pub.seq_num = F_reg.seq_num;
 
@@ -245,8 +252,8 @@ module DecodeIssueUnitL7 #(
     .*
   );
 
-  assign should_squash = squash_sub.val & 
-                         seq_age.is_older( squash_sub.seq_num, F_reg.seq_num );
+  assign should_squash = squash_sub.val &
+                         (p_commit_recovery | seq_age.is_older( squash_sub.seq_num, F_reg.seq_num ));
 
   //----------------------------------------------------------------------
   // Serialization barriers
@@ -265,7 +272,7 @@ module DecodeIssueUnitL7 #(
   assign drained          = ( F_reg.seq_num == seq_age.oldest_seq_num );
 
   always_ff @( posedge clk ) begin
-    if( rst )
+    if( rst | (p_commit_recovery & squash_sub.val) )
       serial_in_flight <= 1'b0;
     else if( X_xfer & decoder_serialize )
       serial_in_flight <= 1'b1;
@@ -284,7 +291,8 @@ module DecodeIssueUnitL7 #(
     .xfer  (X_xfer)
   );
 
-  assign F.rdy = ~debug_stall                            &
+  assign F.rdy = !(p_commit_recovery & squash_sub.val) &
+                 ~debug_stall                            &
                  ~serial_in_flight                       &
                  ~( serial_in_decode & ~should_squash )  &
                  ((X_xfer & !stall_pending & decoder_val) | 
@@ -322,7 +330,9 @@ module DecodeIssueUnitL7 #(
       assign Ex[k].sq_idx       = sq.alloc_idx;
 
       always_comb begin
-        if( decoder_op3_sel ) // Branch - need immediate
+        if( p_commit_recovery && decoder_jal != 0 )
+          Ex[k].op3.branch_imm = jump_target; // Resolved JAL/JALR target
+        else if( decoder_op3_sel ) // Branch - need immediate
           Ex[k].op3.branch_imm = imm;
         else // Memory needs register data
           Ex[k].op3.mem_data = rdata1;

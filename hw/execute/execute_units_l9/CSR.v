@@ -19,6 +19,7 @@ import UArch::*;
 module CSR (
   input  logic clk,
   input  logic rst,
+  input  logic flush = 1'b0,
 
   //----------------------------------------------------------------------
   // D <-> X Interface
@@ -64,7 +65,7 @@ typedef struct packed {
   // verilator lint_off ENUMVALUE
 
   always_ff @(posedge clk) begin
-    if (rst)
+    if( rst | flush )
       D_reg <= '0;
     else
       D_reg <= D_reg_next;
@@ -147,14 +148,17 @@ typedef struct packed {
   assign W.seq_num = D_reg.seq_num;
   assign W.waddr   = D_reg.waddr;
   assign W.preg    = D_reg.preg;
+  assign W.redirect = 1'b0;
+  assign W.redirect_target = '0;
+
   assign W.ppreg   = D_reg.ppreg;
 
 //----------------------------------------------------------------------
 // Handshake Logic
 //----------------------------------------------------------------------
 
-  assign D.rdy = (!D_reg.val) | W.rdy;
-  assign W.val = D_reg.val;
+  assign D.rdy = !flush & ((!D_reg.val) | W.rdy);
+  assign W.val = !flush & (D_reg.val);
 //----------------------------------------------------------------------
 // Linetracing
 //----------------------------------------------------------------------

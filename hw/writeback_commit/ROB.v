@@ -10,10 +10,13 @@ module ROB #(
   parameter p_depth    = 32,
   parameter p_msg_bits = 32,
 
-  parameter p_entry_bits = $clog2( p_depth )
+  parameter p_entry_bits = $clog2( p_depth ),
+  parameter p_bypass = 1
 )(
   input  logic clk,
   input  logic rst,
+  // Full recovery at the retiring head. Head still advances on dequeue.
+  input  logic flush = 1'b0,
 
   //----------------------------------------------------------------------
   // Insert
@@ -52,7 +55,7 @@ module ROB #(
   logic                    bypass;
 
   always_ff @( posedge clk ) begin
-    if( rst )
+    if( rst | flush )
       entries <= '{default: t_entry'{msg: 'x, val: 1'b0}};
     else begin
       if( ins_en & !bypass ) begin
@@ -72,7 +75,7 @@ module ROB #(
   //----------------------------------------------------------------------
 
   logic can_bypass;
-  assign can_bypass = ( ins_idx == deq_ptr );
+  assign can_bypass = p_bypass && ( ins_idx == deq_ptr );
 
   assign bypass = ins_en & deq_en & can_bypass;
 

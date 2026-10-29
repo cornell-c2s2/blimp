@@ -14,6 +14,7 @@ module ExQueue #(
 )(
   input  logic clk,
   input  logic rst,
+  input  logic flush = 1'b0,
 
   X__WIntf.W_intf in,
   X__WIntf.X_intf out
@@ -40,6 +41,8 @@ module ExQueue #(
     logic                        exc_val;
     logic                  [4:0] exc_cause;
     logic                 [31:0] exc_tval;
+    logic                        redirect;
+    logic                 [31:0] redirect_target;
   } msg_t;
 
   msg_t in_msg;
@@ -58,6 +61,8 @@ module ExQueue #(
   assign in_msg.exc_val   = in.exc_val;
   assign in_msg.exc_cause = in.exc_cause;
   assign in_msg.exc_tval  = in.exc_tval;
+  assign in_msg.redirect = in.redirect;
+  assign in_msg.redirect_target = in.redirect_target;
 
   assign out.pc      = out_msg.pc;
   assign out.waddr   = out_msg.waddr;
@@ -72,6 +77,8 @@ module ExQueue #(
   assign out.exc_val   = out_msg.exc_val;
   assign out.exc_cause = out_msg.exc_cause;
   assign out.exc_tval  = out_msg.exc_tval;
+  assign out.redirect = out_msg.redirect;
+  assign out.redirect_target = out_msg.redirect_target;
 
   //----------------------------------------------------------------------
   // Use a FIFO with bypassing to buffer the stream
@@ -88,7 +95,7 @@ module ExQueue #(
     .p_depth      (p_depth)
   ) buffer (
     .clk   (clk),
-    .rst   (rst),
+    .rst   (rst | flush),
     .push  (buffer_push),
     .pop   (buffer_pop),
     .empty (buffer_empty),
@@ -115,11 +122,11 @@ module ExQueue #(
   // Control signals
   //----------------------------------------------------------------------
 
-  assign in.rdy  = !buffer_full  | out.rdy;
-  assign out.val = !buffer_empty | ( buffer_empty & in.val );
+  assign in.rdy  = !flush & (!buffer_full | out.rdy);
+  assign out.val = !flush & (!buffer_empty | (buffer_empty & in.val));
 
   assign buffer_push = in.rdy & in.val & !( can_bypass & out.rdy );
-  assign buffer_pop  = !buffer_empty & out.rdy;
+  assign buffer_pop  = !flush & !buffer_empty & out.rdy;
 endmodule
 
 `endif // HW_EXECUTE_EXQUEUE_V

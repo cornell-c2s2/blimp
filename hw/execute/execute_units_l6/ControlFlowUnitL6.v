@@ -16,9 +16,13 @@
 import CSRDefs::*;
 import UArch::*;
 
-module ControlFlowUnitL6 (
+module ControlFlowUnitL6 #(
+  // Set with DecodeIssueUnitL7.p_commit_recovery. Legacy tops retain early redirects.
+  parameter p_commit_recovery = 0
+)(
   input  logic clk,
   input  logic rst,
+  input  logic flush = 1'b0,
 
   //----------------------------------------------------------------------
   // D <-> X Interface
@@ -67,7 +71,7 @@ module ControlFlowUnitL6 (
   // verilator lint_off ENUMVALUE
 
   always_ff @( posedge clk ) begin
-    if ( rst )
+    if( rst | flush )
       D_reg <= '0;
     else
       D_reg <= D_reg_next;
@@ -120,7 +124,7 @@ module ControlFlowUnitL6 (
 
   logic squash_sent;
   always_ff @( posedge clk ) begin
-    if( rst )
+    if( rst | flush )
       squash_sent <= 1'b0;
     else if( D_xfer )
       squash_sent <= 1'b0;
@@ -129,7 +133,7 @@ module ControlFlowUnitL6 (
   end
 
   // Squash until message is taken
-  assign squash.val     = D_reg.val & should_branch & !squash_sent;
+  assign squash.val     = !p_commit_recovery & !flush & D_reg.val & should_branch & !squash_sent;
   assign squash.target  = D_reg.pc + D_reg.imm;
   assign squash.seq_num = D_reg.seq_num;
 
@@ -139,7 +143,7 @@ module ControlFlowUnitL6 (
 
   always_comb begin
     case( D_reg.uop )
-      OP_BNE:  W.wen = 1'b0;
+      OP_BEQ, OP_BNE, OP_BLT, OP_BGE, OP_BLTU, OP_BGEU: W.wen = 1'b0;
       OP_JAL:  W.wen = 1'b1;
       OP_JALR: W.wen = 1'b1;
       default: W.wen = 1'bx;
@@ -147,6 +151,12 @@ module ControlFlowUnitL6 (
   end
 
   assign W.wdata = D_reg.pc + 32'd4;
+
+  // Decode supplies the absolute target for jumps and the offset for branches.
+  assign W.redirect = p_commit_recovery &&
+    (should_branch || D_reg.uop == OP_JAL || D_reg.uop == OP_JALR);
+  assign W.redirect_target = (D_reg.uop == OP_JAL || D_reg.uop == OP_JALR)
+    ? D_reg.imm : D_reg.pc + D_reg.imm;
 
   //----------------------------------------------------------------------
   // Remaining signals
@@ -169,8 +179,8 @@ module ControlFlowUnitL6 (
   // Assign remaining signals
   //----------------------------------------------------------------------
 
-  assign D.rdy = W.rdy | (!D_reg.val);
-  assign W.val = D_reg.val;
+  assign D.rdy = !flush & (W.rdy | (!D_reg.val));
+  assign W.val = !flush & (D_reg.val);
 
   //----------------------------------------------------------------------
   // Linetracing

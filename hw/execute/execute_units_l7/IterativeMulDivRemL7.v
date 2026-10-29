@@ -158,6 +158,7 @@ endmodule
 module IterativeMulDivRemL7 (
   input  logic clk,
   input  logic rst,
+  input  logic flush = 1'b0,
 
   //----------------------------------------------------------------------
   // D <-> X Interface
@@ -209,7 +210,7 @@ module IterativeMulDivRemL7 (
 
   //synopsys sync_set_reset "rst"
   always_ff @( posedge clk ) begin
-    if ( rst )
+    if( rst | flush )
       D_reg <= '{ 
         val:     1'b0, 
         pc:      '0,
@@ -270,7 +271,7 @@ module IterativeMulDivRemL7 (
 
   //synopsys sync_set_reset "rst"
   always_ff @( posedge clk ) begin
-    if( rst )
+    if( rst | flush )
       curr_state <= IDLE;
     else
       curr_state <= next_state;
@@ -391,7 +392,7 @@ module IterativeMulDivRemL7 (
 
   //synopsys sync_set_reset "rst"
   always_ff @( posedge clk ) begin
-    if( rst ) opa <= '0;
+    if( rst | flush ) opa <= '0;
     else      opa <= opa_next;
   end
 
@@ -411,7 +412,7 @@ module IterativeMulDivRemL7 (
 
   //synopsys sync_set_reset "rst"
   always_ff @( posedge clk ) begin
-    if( rst ) opb <= '0;
+    if( rst | flush ) opb <= '0;
     else      opb <= opb_next;
   end
 
@@ -428,7 +429,7 @@ module IterativeMulDivRemL7 (
 
   //synopsys sync_set_reset "rst"
   always_ff @( posedge clk ) begin
-    if( rst ) b_shift <= '0;
+    if( rst | flush ) b_shift <= '0;
     else      b_shift <= b_shift_next;
   end
 
@@ -448,7 +449,7 @@ module IterativeMulDivRemL7 (
 
   //synopsys sync_set_reset "rst"
   always_ff @( posedge clk ) begin
-    if( rst ) result <= '0;
+    if( rst | flush ) result <= '0;
     else      result <= result_next;
   end
 
@@ -470,13 +471,16 @@ module IterativeMulDivRemL7 (
   // Assign outputs
   //----------------------------------------------------------------------
 
-  assign D.rdy = ( curr_state == IDLE ) || ( ( curr_state == DONE ) & W.rdy );
+  assign D.rdy = !flush & (( curr_state == IDLE ) || ( ( curr_state == DONE ) & W.rdy ));
   
-  assign W.val     = ( curr_state == DONE );
+  assign W.val = !flush & (( curr_state == DONE ));
   assign W.pc      = D_reg.pc;
   assign W.seq_num = D_reg.seq_num;
   assign W.waddr   = D_reg.waddr;
   assign W.preg    = D_reg.preg;
+  assign W.redirect = 1'b0;
+  assign W.redirect_target = '0;
+
   assign W.ppreg   = D_reg.ppreg;
   assign W.wen     = 1'b1;
 

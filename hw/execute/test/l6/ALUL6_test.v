@@ -50,6 +50,7 @@ module ALUL6TestSuite #(
   ) X__W_intf();
 
   ALUL6 dut (
+    .flush (1'b0),
     .D (D__X_intf),
     .W (X__W_intf),
     .*

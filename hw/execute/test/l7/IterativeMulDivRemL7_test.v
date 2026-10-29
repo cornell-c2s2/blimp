@@ -50,6 +50,7 @@ module IterativeMulDivRemL7TestSuite #(
   ) X__W_intf();
 
   IterativeMulDivRemL7 dut (
+    .flush (1'b0),
     .D (D__X_intf),
     .W (X__W_intf),
     .*

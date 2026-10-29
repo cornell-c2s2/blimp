@@ -478,6 +478,9 @@ module LoadStoreUnitL10 #(
   assign W.waddr            = stage2_reg.waddr;
   assign W.seq_num          = stage2_reg.seq_num;
   assign W.preg             = stage2_reg.preg;
+  assign W.redirect = 1'b0;
+  assign W.redirect_target = '0;
+
   assign W.ppreg            = stage2_reg.ppreg;
 
   assign W.csr_cmd          = CSR_CMD_NONE;

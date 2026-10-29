@@ -9,14 +9,17 @@
 `include "hw/common/PriorityEncoder.v"
 `include "intf/CompleteNotif.v"
 `include "intf/CommitNotif.v"
+`include "hw/writeback_commit/ArchitecturalRenameTable.v"
 
 module RenameTable #(
   parameter p_num_phys_regs  = 36,
 
-  parameter p_phys_addr_bits = $clog2(p_num_phys_regs)
+  parameter p_phys_addr_bits = $clog2(p_num_phys_regs),
+  parameter p_commit_recovery = 0
 ) (
   input  logic clk,
   input  logic rst,
+  input  logic recover = 1'b0,
 
   // ---------------------------------------------------------------------
   // Allocation
@@ -68,6 +71,16 @@ module RenameTable #(
   // Update Logic
   // ---------------------------------------------------------------------
 
+  logic [p_phys_addr_bits-1:0] recovery_map [31:1];
+  ArchitecturalRenameTable #(
+    .p_num_phys_regs(p_num_phys_regs),
+    .p_phys_addr_bits(p_phys_addr_bits)
+  ) art (
+    .clk(clk), .rst(rst), .commit(commit), .recovery_map(recovery_map)
+  );
+  logic recovering;
+  assign recovering = p_commit_recovery && recover;
+
   logic alloc_xfer;
 
   logic                        complete_val;
@@ -95,6 +108,8 @@ module RenameTable #(
           rename_table_next[i].pending = 1'b1;
           rename_table_next[i].preg    = alloc_preg;
         end
+        if( recovering )
+          rename_table_next[i] = '{pending: 1'b0, preg: recovery_map[i]};
       end
     end
   endgenerate
@@ -119,6 +134,12 @@ module RenameTable #(
           free_list_next[i] = 1'b1;
         if( alloc_xfer & ( alloc_preg == i ) )
           free_list_next[i] = 1'b0;
+        if( recovering ) begin
+          free_list_next[i] = 1'b1;
+          for( int a = 1; a < 32; a = a + 1 )
+            if( recovery_map[a] == p_phys_addr_bits'(i) )
+              free_list_next[i] = 1'b0;
+        end
       end
     end
   endgenerate
@@ -127,7 +148,7 @@ module RenameTable #(
   // Allocation
   // ---------------------------------------------------------------------
 
-  assign alloc_xfer = alloc_en & alloc_rdy;
+  assign alloc_xfer = alloc_en & alloc_rdy & !recovering & (alloc_areg != 0);
 
   // Use priority encoder to get first free physical address
   logic [p_num_phys_regs-1:1] preg_alloc_sel_in, preg_alloc_sel_out;
@@ -175,7 +196,7 @@ module RenameTable #(
                                            : 0;
   
   // Only allocate when we have an entry to give
-  assign alloc_rdy = |preg_alloc_sel_in;
+  assign alloc_rdy = !recovering & ((alloc_areg == 0) | (|preg_alloc_sel_in));
 
   // ---------------------------------------------------------------------
   // Lookup
@@ -220,7 +241,8 @@ module RenameTable #(
   // Free on commit
   // ---------------------------------------------------------------------
 
-  assign free_val   = commit.val;
+  assign free_val   = commit.val & (!p_commit_recovery |
+                       (commit.wen & (commit.waddr != 0)));
   assign free_ppreg = commit.ppreg;
 
   // ---------------------------------------------------------------------

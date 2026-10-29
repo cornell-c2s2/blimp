@@ -33,6 +33,8 @@ interface CommitNotif
 
   // Added in v3
   logic [p_phys_addr_bits-1:0] ppreg;
+  // For architectural map update
+  logic [p_phys_addr_bits-1:0] preg;
 
   // verilator lint_on UNUSEDSIGNAL
 
@@ -53,7 +55,8 @@ interface CommitNotif
     output seq_num,
 
     // v3
-    output ppreg
+    output ppreg,
+    output preg
   );
 
   // Subscribe
@@ -68,7 +71,8 @@ interface CommitNotif
     input seq_num,
 
     // v3
-    input ppreg
+    input ppreg,
+    input preg
   );
 
 endinterface

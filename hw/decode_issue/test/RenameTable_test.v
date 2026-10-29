@@ -60,6 +60,7 @@ module RenameTableTestSuite #(
   RenameTable #(
     .p_num_phys_regs (p_num_phys_regs)
   ) dut (
+    .recover (1'b0),
     .alloc_areg  (dut_alloc_areg),
     .alloc_preg  (dut_alloc_preg),
     .alloc_ppreg (dut_alloc_ppreg),
