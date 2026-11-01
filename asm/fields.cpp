@@ -488,3 +488,52 @@ std::string get_succ_id( uint32_t binary )
   }
   return result;
 }
+
+//------------------------------------------------------------------------
+// CSR Arguments
+//------------------------------------------------------------------------
+
+uint32_t csr_mask( const std::string& csr )
+{
+  int32_t csr_val = get_imm_int( csr );
+
+  if ( ( csr_val > 0xfff ) || ( csr_val < 0 ) ) {
+    std::string excp = std::format( "Invalid CSR address: {}", csr_val );
+    throw std::invalid_argument( excp );
+  }
+
+  return bitslice( csr_val, 11, 0 ) << 20;
+}
+
+uint32_t zimm_mask( const std::string& zimm )
+{
+  int32_t zimm_val = get_imm_int( zimm );
+
+  if ( ( zimm_val > 0x1f ) || ( zimm_val < 0 ) ) {
+    std::string excp =
+        std::format( "Invalid CSR-immediate: {}", zimm_val );
+    throw std::invalid_argument( excp );
+  }
+
+  return bitslice( zimm_val, 4, 0 ) << 15;
+}
+
+uint32_t get_csr( uint32_t binary )
+{
+  return ( binary >> 20 ) & 0x00000fff;
+}
+
+uint32_t get_zimm( uint32_t binary )
+{
+  return ( binary >> 15 ) & 0x0000001f;
+}
+
+std::string get_csr_id( uint32_t binary )
+{
+  return std::format( "0x{:03x}", get_csr( binary ) );
+}
+
+std::string get_zimm_id( uint32_t binary )
+{
+  return std::to_string( (int) get_zimm( binary ) );
+}

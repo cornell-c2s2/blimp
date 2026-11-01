@@ -73,4 +73,17 @@ uint32_t succ_mask( const std::string& mem_spec );
 std::string get_pred_id( uint32_t binary );
 std::string get_succ_id( uint32_t binary );
 
+//------------------------------------------------------------------------
+// CSR Arguments
+//------------------------------------------------------------------------
+
+uint32_t csr_mask( const std::string& csr );
+uint32_t zimm_mask( const std::string& zimm );
+
+uint32_t get_csr( uint32_t binary );
+uint32_t get_zimm( uint32_t binary );
+
+std::string get_csr_id( uint32_t binary );
+std::string get_zimm_id( uint32_t binary );
+
 #endif  // FIELDSS_H

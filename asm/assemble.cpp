@@ -26,7 +26,8 @@ std::map<std::string, std::function<uint32_t( const std::string& )>>
                       { "imm_s", imm_s_mask },   { "imm_b", imm_b_mask },
                       { "imm_u", imm_u_mask },   { "imm_j", imm_j_mask },
                       { "imm_is", imm_is_mask }, { "pred", pred_mask },
-                      { "succ", succ_mask } };
+                      { "succ", succ_mask },     { "csr", csr_mask },
+                      { "zimm", zimm_mask } };
 
 std::map<std::string,
          std::function<uint32_t( const std::string&, uint32_t )>>
