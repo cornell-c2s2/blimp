@@ -17,7 +17,6 @@ import UArch::*;
 module ALUL6 (
   input  logic clk,
   input  logic rst,
-  input  logic flush = 1'b0,
 
   //----------------------------------------------------------------------
   // D <-> X Interface
@@ -59,7 +58,7 @@ module ALUL6 (
   // verilator lint_off ENUMVALUE
 
   always_ff @( posedge clk ) begin
-    if( rst | flush )
+    if ( rst )
       D_reg <= '0;
     else
       D_reg <= D_reg_next;
@@ -122,8 +121,8 @@ module ALUL6 (
   // Assign remaining signals
   //----------------------------------------------------------------------
 
-  assign D.rdy = !flush & (W.rdy | (!D_reg.val));
-  assign W.val = !flush & (D_reg.val);
+  assign D.rdy = W.rdy | (!D_reg.val);
+  assign W.val = D_reg.val;
 
   assign W.pc      = D_reg.pc;
   assign W.wen     = 1'b1;

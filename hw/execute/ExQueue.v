@@ -2,22 +2,36 @@
 // ExQueue.v
 //========================================================================
 // A queue to buffer outputs of execute units
+//
+// A squash marks buffered entries younger than the squash as killed at the
+// clock edge; a killed entry at the head is dropped without being sent.
+// The bypass path (empty queue) is not filtered: the commit unit drops a
+// squashed instruction that arrives in the squash cycle. out.val never
+// depends on this cycle's squash, which would form a combinational loop
 
 `ifndef HW_EXECUTE_EXQUEUE_V
 `define HW_EXECUTE_EXQUEUE_V
 
+`include "hw/util/SeqAge.v"
+`include "intf/CommitNotif.v"
+`include "intf/SquashNotif.v"
 `include "intf/X__WIntf.v"
-`include "hw/common/Fifo.v"
 
 module ExQueue #(
   parameter p_depth = 8
 )(
   input  logic clk,
   input  logic rst,
-  input  logic flush = 1'b0,
 
   X__WIntf.W_intf in,
-  X__WIntf.X_intf out
+  X__WIntf.X_intf out,
+
+  //----------------------------------------------------------------------
+  // Squash and commit (age reference)
+  //----------------------------------------------------------------------
+
+  SquashNotif.sub squash,
+  CommitNotif.sub commit
 );
 
   localparam p_seq_num_bits   = in.p_seq_num_bits;
@@ -81,31 +95,89 @@ module ExQueue #(
   assign out.redirect_target = out_msg.redirect_target;
 
   //----------------------------------------------------------------------
-  // Use a FIFO with bypassing to buffer the stream
+  // Buffer with bypassing, and a killed bit per entry
   //----------------------------------------------------------------------
+
+  localparam p_ptr_bits = ( p_depth > 1 ) ? $clog2( p_depth ) : 1;
+  localparam p_cnt_bits = $clog2( p_depth + 1 );
+
+  msg_t buffer_msg    [p_depth];
+  logic buffer_killed [p_depth];
+
+  logic [p_ptr_bits-1:0] head;
+  logic [p_ptr_bits-1:0] tail;
+  logic [p_cnt_bits-1:0] count;
 
   logic buffer_push;
   logic buffer_pop;
   logic buffer_empty;
   logic buffer_full;
-  msg_t buffer_out;
+  logic head_killed;
 
-  Fifo #(
-    .p_entry_bits ($bits(msg_t)),
-    .p_depth      (p_depth)
-  ) buffer (
-    .clk   (clk),
-    .rst   (rst | flush),
-    .push  (buffer_push),
-    .pop   (buffer_pop),
-    .empty (buffer_empty),
-    .full  (buffer_full),
-    .wdata (in_msg),
-    .rdata (buffer_out)
-  );
+  assign buffer_empty = ( count == '0 );
+  assign buffer_full  = ( int'(count) == p_depth );
+  assign head_killed  = !buffer_empty & buffer_killed[head];
 
   logic can_bypass;
   assign can_bypass = buffer_empty;
+
+  //----------------------------------------------------------------------
+  // Squashing
+  //----------------------------------------------------------------------
+
+  SeqAge seq_age (
+    .clk    (clk),
+    .rst    (rst),
+    .commit (commit)
+  );
+
+  logic [31:0] unused_squash_target;
+  assign unused_squash_target = squash.target;
+
+  // Whether buffer slot i holds an entry
+  function automatic logic occupied( input int i );
+    int offset;
+    offset = i - int'(head);
+    if( offset < 0 )
+      offset = offset + p_depth;
+    return ( offset < int'(count) );
+  endfunction
+
+  always_ff @( posedge clk ) begin
+    if( rst ) begin
+      head  <= '0;
+      tail  <= '0;
+      count <= '0;
+      for( int i = 0; i < p_depth; i = i + 1 ) begin
+        buffer_msg[i]    <= '0;
+        buffer_killed[i] <= 1'b0;
+      end
+    end else begin
+      // Kill buffered entries younger than the squash
+      for( int i = 0; i < p_depth; i = i + 1 ) begin
+        if( occupied( i ) & squash.val &
+            seq_age.is_older( squash.seq_num, buffer_msg[i].seq_num ) )
+          buffer_killed[i] <= 1'b1;
+      end
+
+      if( buffer_pop )
+        head <= ( int'(head) == p_depth - 1 ) ? '0 : head + 1;
+
+      // Push (after the kill loop: a full queue's push reuses the slot
+      // freed by a same-cycle pop, and its write wins)
+      if( buffer_push ) begin
+        buffer_msg[tail]    <= in_msg;
+        buffer_killed[tail] <= squash.val &
+                               seq_age.is_older( squash.seq_num, in_msg.seq_num );
+        tail <= ( int'(tail) == p_depth - 1 ) ? '0 : tail + 1;
+      end
+
+      if( buffer_push & !buffer_pop )
+        count <= count + 1;
+      else if( !buffer_push & buffer_pop )
+        count <= count - 1;
+    end
+  end
 
   //----------------------------------------------------------------------
   // Pass messages
@@ -115,18 +187,19 @@ module ExQueue #(
     if( can_bypass )
       out_msg = in_msg;
     else
-      out_msg = buffer_out;
+      out_msg = buffer_msg[head];
   end
 
   //----------------------------------------------------------------------
   // Control signals
   //----------------------------------------------------------------------
+  // A killed head is popped without being sent, which also frees a slot
 
-  assign in.rdy  = !flush & (!buffer_full | out.rdy);
-  assign out.val = !flush & (!buffer_empty | (buffer_empty & in.val));
+  assign in.rdy  = !buffer_full | out.rdy | head_killed;
+  assign out.val = ( !buffer_empty & !head_killed ) | ( buffer_empty & in.val );
 
   assign buffer_push = in.rdy & in.val & !( can_bypass & out.rdy );
-  assign buffer_pop  = !flush & !buffer_empty & out.rdy;
+  assign buffer_pop  = !buffer_empty & ( out.rdy | head_killed );
 endmodule
 
 `endif // HW_EXECUTE_EXQUEUE_V

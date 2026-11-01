@@ -50,12 +50,33 @@ module ExQueueTestSuite #(
     .p_seq_num_bits (p_seq_num_bits)
   ) out_intf();
 
+  // Idle squash and commit (not exercised by this test)
+  SquashNotif #(
+    .p_seq_num_bits (p_seq_num_bits)
+  ) idle_squash();
+
+  CommitNotif #(
+    .p_seq_num_bits (p_seq_num_bits)
+  ) idle_commit();
+
+  assign idle_squash.val     = 1'b0;
+  assign idle_squash.seq_num = '0;
+  assign idle_squash.target  = '0;
+  assign idle_commit.val     = 1'b0;
+  assign idle_commit.seq_num = '0;
+  assign idle_commit.pc      = '0;
+  assign idle_commit.waddr   = '0;
+  assign idle_commit.wdata   = '0;
+  assign idle_commit.wen     = 1'b0;
+  assign idle_commit.ppreg   = '0;
+
   ExQueue #(
     .p_depth (p_depth)
   ) dut (
-    .flush (1'b0),
-    .in  (in_intf),
-    .out (out_intf),
+    .in     (in_intf),
+    .out    (out_intf),
+    .squash (idle_squash),
+    .commit (idle_commit),
     .*
   );
 

@@ -150,7 +150,11 @@ module ALUL10 (
   //----------------------------------------------------------------------
 
   assign D.rdy = W.rdy | (!D_reg.val);
-  assign W.val = D_reg.val & !should_squash;
+  // A squash only clears D_reg at the clock edge. In the squash cycle the
+  // instruction may still be sent; the commit unit drops it. Gating W.val
+  // with the squash would form a combinational loop through complete,
+  // decode's squash request and the squash unit
+  assign W.val = D_reg.val;
 
   assign W.pc      = D_reg.pc;
   assign W.wen     = 1'b1;
@@ -165,6 +169,8 @@ module ALUL10 (
   assign W.exc_val   = 1'b0;
   assign W.exc_cause = 5'b0;
   assign W.exc_tval  = 32'b0;
+  assign W.redirect        = 1'b0;
+  assign W.redirect_target = '0;
 
   //----------------------------------------------------------------------
   // Linetracing

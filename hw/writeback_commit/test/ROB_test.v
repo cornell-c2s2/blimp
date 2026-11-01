@@ -59,7 +59,9 @@ module ROBTestSuite #(
     .deq_idx (dut_deq_idx),
     .deq_msg (dut_deq_msg),
     .deq_en  (dut_deq_en),
-    .deq_rdy (dut_deq_rdy)
+    .deq_rdy (dut_deq_rdy),
+
+    .clr_mask ('0)
   );
 
   //----------------------------------------------------------------------

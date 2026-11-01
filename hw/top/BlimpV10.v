@@ -34,9 +34,12 @@
 `include "intf/StoreQueueIntf.v"
 `include "intf/CompletedStoreBufferIntf.v"
 
-// queues.sv also defines modules that are not used here
+// queues.sv also defines modules that are not used here, and has an
+// unused internal signal
 // verilator lint_off MULTITOP
+// verilator lint_off UNUSEDSIGNAL
 `include "ip/cmn/rtl/queues.sv"
+// verilator lint_on UNUSEDSIGNAL
 // verilator lint_on MULTITOP
 
 module BlimpV10 #(
@@ -108,7 +111,7 @@ module BlimpV10 #(
 
   SquashNotif #(
     .p_seq_num_bits (p_seq_num_bits)
-  ) squash_arb_notif [3]();
+  ) squash_arb_notif [4]();
 
   SquashNotif #(
     .p_seq_num_bits (p_seq_num_bits)
@@ -276,9 +279,13 @@ module BlimpV10 #(
     .*
   );
 
+  // Branches and jumps redirect at commit (p_commit_recovery), so every
+  // squash comes from the committing instruction. DecodeIssueUnitL7,
+  // ControlFlowUnitL6 and the commit unit's branch_squash must agree
   DecodeIssueUnitL7 #(
-    .p_num_pipes     (p_num_pipes),
-    .p_num_phys_regs (p_num_phys_regs),
+    .p_num_pipes       (p_num_pipes),
+    .p_num_phys_regs   (p_num_phys_regs),
+    .p_commit_recovery (1),
     .p_pipe_subsets ({
       p_alu_subset,  // ALU
       p_m_subset,    // M-Extension
@@ -308,8 +315,10 @@ module BlimpV10 #(
   );
 
   ExQueue #(1) alu_buf (
-    .in  (buffer_intf),
-    .out (x__w_intfs[0]),
+    .in     (buffer_intf),
+    .out    (x__w_intfs[0]),
+    .squash (squash_gnt_notif),
+    .commit (commit_notif),
     .*
   );
 
@@ -335,10 +344,14 @@ module BlimpV10 #(
     .*
   );
 
-  ControlFlowUnitL6 CTRL_XU (
-    .D      (d__x_intfs[3]),
-    .W      (x__w_intfs[3]),
-    .squash (squash_arb_notif[1]),
+  ControlFlowUnitL6 #(
+    .p_commit_recovery (1)
+  ) CTRL_XU (
+    .D          (d__x_intfs[3]),
+    .W          (x__w_intfs[3]),
+    .squash     (squash_arb_notif[1]),
+    .squash_sub (squash_gnt_notif),
+    .commit     (commit_notif),
     .*
   );
 
@@ -366,20 +379,24 @@ module BlimpV10 #(
     .p_csb_depth (p_csb_depth),
     .p_opaq_bits (p_opaq_bits)
   ) WCU (
-    .Ex        (x__w_intfs),
-    .complete  (complete_notif),
-    .commit    (commit_notif),
-    .csr_notif (csr_notif),
-    .squash    (squash_gnt_notif),
-    .sq        (sq_intf),
-    .csb       (csb_intf),
-    .store_mem (store_mem),
-    .clk       (clk),
-    .rst       (rst)
+    .Ex            (x__w_intfs),
+    .complete      (complete_notif),
+    .commit        (commit_notif),
+    .csr_notif     (csr_notif),
+    .squash        (squash_gnt_notif),
+    .branch_squash (squash_arb_notif[3]),
+    .sq            (sq_intf),
+    .csb           (csb_intf),
+    .store_mem     (store_mem),
+    .clk           (clk),
+    .rst           (rst)
   );
 
+  // Squash sources: 0 = decode (JAL/JALR) and 1 = CFU (branches), both
+  // idle with p_commit_recovery; 2 = CSRFile (traps, MRET); 3 = commit
+  // unit (branches and jumps, at commit)
   SquashUnitL1 #(
-    .p_num_arb (3)
+    .p_num_arb (4)
   ) SU (
     .arb    (squash_arb_notif),
     .gnt    (squash_gnt_notif),

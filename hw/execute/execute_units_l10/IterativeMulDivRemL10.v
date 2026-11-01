@@ -505,7 +505,9 @@ module IterativeMulDivRemL10 (
 
   assign D.rdy = ( curr_state == IDLE ) || ( ( curr_state == DONE ) & W.rdy );
   
-  assign W.val     = ( curr_state == DONE ) & !should_squash;
+  // Not gated by this cycle's squash (see ALUL10); the commit unit drops
+  // a squashed result
+  assign W.val     = ( curr_state == DONE );
   assign W.pc      = D_reg.pc;
   assign W.seq_num = D_reg.seq_num;
   assign W.waddr   = D_reg.waddr;
@@ -519,6 +521,8 @@ module IterativeMulDivRemL10 (
   assign W.exc_val   = 1'b0;
   assign W.exc_cause = 5'b0;
   assign W.exc_tval  = 32'b0;
+  assign W.redirect        = 1'b0;
+  assign W.redirect_target = '0;
 
   always_comb begin
     case( D_reg.uop )

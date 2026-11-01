@@ -2,6 +2,10 @@
 // ROB.v
 //========================================================================
 // A basic reorder buffer to ensure in-order commit
+//
+// Entries can be cleared (for squashed instructions) with clr_mask. The
+// clear only updates the entries at the clock edge; it never affects the
+// dequeue outputs combinationally
 
 `ifndef HW_WRITEBACK_ROB_V
 `define HW_WRITEBACK_ROB_V
@@ -10,13 +14,10 @@ module ROB #(
   parameter p_depth    = 32,
   parameter p_msg_bits = 32,
 
-  parameter p_entry_bits = $clog2( p_depth ),
-  parameter p_bypass = 1
+  parameter p_entry_bits = $clog2( p_depth )
 )(
   input  logic clk,
   input  logic rst,
-  // Full recovery at the retiring head. Head still advances on dequeue.
-  input  logic flush = 1'b0,
 
   //----------------------------------------------------------------------
   // Insert
@@ -33,7 +34,15 @@ module ROB #(
   output logic [p_entry_bits-1:0] deq_idx,
   output logic [  p_msg_bits-1:0] deq_msg,
   input  logic                    deq_en,
-  output logic                    deq_rdy
+  output logic                    deq_rdy,
+
+  //----------------------------------------------------------------------
+  // Clear
+  //----------------------------------------------------------------------
+  // Invalidates the selected entries at the clock edge, including an
+  // entry inserted in the same cycle
+
+  input  logic [     p_depth-1:0] clr_mask
 );
 
   //----------------------------------------------------------------------
@@ -55,7 +64,7 @@ module ROB #(
   logic                    bypass;
 
   always_ff @( posedge clk ) begin
-    if( rst | flush )
+    if( rst )
       entries <= '{default: t_entry'{msg: 'x, val: 1'b0}};
     else begin
       if( ins_en & !bypass ) begin
@@ -67,6 +76,10 @@ module ROB #(
       if( deq_en & deq_rdy ) begin
         entries[deq_ptr] <= '{msg: 'x, val: 1'b0};
       end
+      for( int i = 0; i < p_depth; i = i + 1 ) begin
+        if( clr_mask[i] )
+          entries[i].val <= 1'b0;
+      end
     end
   end
 
@@ -75,7 +88,7 @@ module ROB #(
   //----------------------------------------------------------------------
 
   logic can_bypass;
-  assign can_bypass = p_bypass && ( ins_idx == deq_ptr );
+  assign can_bypass = ( ins_idx == deq_ptr );
 
   assign bypass = ins_en & deq_en & can_bypass;
 

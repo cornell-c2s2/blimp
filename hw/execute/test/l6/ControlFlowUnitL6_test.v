@@ -54,11 +54,32 @@ module ControlFlowUnitL6TestSuite #(
     .p_seq_num_bits (p_seq_num_bits)
   ) squash_notif();
 
+  // Idle squash and commit (not exercised by this test)
+  SquashNotif #(
+    .p_seq_num_bits (p_seq_num_bits)
+  ) idle_squash();
+
+  CommitNotif #(
+    .p_seq_num_bits (p_seq_num_bits)
+  ) idle_commit();
+
+  assign idle_squash.val     = 1'b0;
+  assign idle_squash.seq_num = '0;
+  assign idle_squash.target  = '0;
+  assign idle_commit.val     = 1'b0;
+  assign idle_commit.seq_num = '0;
+  assign idle_commit.pc      = '0;
+  assign idle_commit.waddr   = '0;
+  assign idle_commit.wdata   = '0;
+  assign idle_commit.wen     = 1'b0;
+  assign idle_commit.ppreg   = '0;
+
   ControlFlowUnitL6 dut (
-    .flush (1'b0),
-    .D      (D__X_intf),
-    .W      (X__W_intf),
-    .squash (squash_notif),
+    .D          (D__X_intf),
+    .W          (X__W_intf),
+    .squash     (squash_notif),
+    .squash_sub (idle_squash),
+    .commit     (idle_commit),
     .*
   );
 

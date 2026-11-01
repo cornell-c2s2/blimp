@@ -15,6 +15,7 @@
 `include "hw/writeback_commit/ROB.v"
 `include "hw/writeback_commit/StoreQueue.v"
 `include "hw/writeback_commit/CompletedStoreBuffer.v"
+`include "hw/util/SeqAge.v"
 `include "hw/util/SeqArb.v"
 `include "intf/CompleteNotif.v"
 `include "intf/CommitNotif.v"
@@ -278,6 +279,24 @@ module WritebackCommitUnitL5 #(
   endgenerate
   
   //----------------------------------------------------------------------
+  // Squash
+  //----------------------------------------------------------------------
+  // A squash only affects registers: an instruction arriving in the squash
+  // cycle that is younger than the squash is not latched into X_reg, and
+  // younger ROB entries (including one inserted this cycle) are cleared at
+  // the clock edge. complete is not gated, as it would form a
+  // combinational loop through decode's squash request
+
+  SeqAge seq_age (
+    .clk    (clk),
+    .rst    (rst),
+    .commit (local_commit)
+  );
+
+  logic Ex_squashed;
+  assign Ex_squashed = squash.val & seq_age.is_older( squash.seq_num, Ex_seq_num_sel );
+
+  //----------------------------------------------------------------------
   // Pipeline registers for X interface
   //----------------------------------------------------------------------
 
@@ -304,7 +323,7 @@ module WritebackCommitUnitL5 #(
   X_input X_reg_next;
 
   always_ff @( posedge clk ) begin
-    if ( rst | squash.val )
+    if ( rst )
       X_reg <= '{ 
         val: 1'b0, 
         pc: '0,
@@ -328,7 +347,7 @@ module WritebackCommitUnitL5 #(
   end
 
   always_comb begin
-    if ( Ex_val_sel )
+    if ( Ex_val_sel & !Ex_squashed )
       X_reg_next = '{
         val:     1'b1,
         pc:      Ex_pc_sel,
@@ -368,7 +387,7 @@ module WritebackCommitUnitL5 #(
       };
   end
 
-  assign complete.val     = Ex_val_sel & !squash.val;
+  assign complete.val     = Ex_val_sel;
   assign complete.seq_num = Ex_seq_num_sel;
   assign complete.waddr   = Ex_waddr_sel;
   assign complete.wdata   = Ex_wdata_sel;
@@ -415,16 +434,23 @@ module WritebackCommitUnitL5 #(
 
   localparam p_rob_depth = 2 ** p_seq_num_bits;
 
+  // ROB entries are indexed by sequence number
+  logic [p_rob_depth-1:0] rob_clr_mask;
+
+  always_comb begin
+    for( int i = 0; i < p_rob_depth; i = i + 1 )
+      rob_clr_mask[i] = squash.val &
+                        seq_age.is_older( squash.seq_num, p_seq_num_bits'(i) );
+  end
+
   logic                      commit_ok;
   logic                      rob_deq_rdy;
   logic [p_seq_num_bits-1:0] rob_deq_idx;
 
   ROB #(
-    .p_bypass   (0),
     .p_depth    (p_rob_depth),
     .p_msg_bits ($bits(t_rob_msg))
   ) rob (
-    .flush   (squash.val),
     .ins_idx (X_reg.seq_num),
     .ins_msg (rob_input),
     .ins_en  (X_reg.val),
@@ -433,6 +459,8 @@ module WritebackCommitUnitL5 #(
     .deq_msg (rob_output),
     .deq_en  (commit_ok),
     .deq_rdy (rob_deq_rdy),
+
+    .clr_mask (rob_clr_mask),
     .*
   );
 

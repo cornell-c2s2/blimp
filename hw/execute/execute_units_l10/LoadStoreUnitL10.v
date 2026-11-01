@@ -510,7 +510,9 @@ module LoadStoreUnitL10 #(
                          seq_age.is_older(squash.seq_num, stage2_reg.seq_num));
   assign mem.resp_rdy = stage2_reg.val & stage2_reg.resp &
                         (stage2_killed | W.rdy);
-  assign W.val = stage2_reg.val & !stage2_killed &
+  // W.val only uses the registered kill: an entry squashed this cycle may
+  // still be sent, and the commit unit drops it (see ALUL10)
+  assign W.val = stage2_reg.val & !stage2_reg.killed &
                  (!stage2_reg.resp | mem.resp_val);
   assign stage2_done = W_xfer | (stage2_reg.val & stage2_killed &
                                (!stage2_reg.resp | mem.resp_val));

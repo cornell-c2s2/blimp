@@ -256,6 +256,8 @@ module WritebackCommitUnitL3 #(
     .deq_msg (rob_output),
     .deq_en  (commit.val),
     .deq_rdy (commit.val),
+
+    .clr_mask ('0),
     .*
   );
 

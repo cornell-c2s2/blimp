@@ -3,12 +3,19 @@
 //========================================================================
 // An execute unit for handling control flow operations (conditional
 // and unconditional)
+//
+// A squash (squash_sub) only clears D_reg at the clock edge. In the squash
+// cycle the instruction may still be sent to W; the commit unit drops it.
+// Neither W.val nor this unit's own squash request depend on squash_sub,
+// which would form a combinational loop through the squash unit
 
 `ifndef HW_EXECUTE_EXECUTE_VARIANTS_L6_CONTROLFLOWUNITL6_V
 `define HW_EXECUTE_EXECUTE_VARIANTS_L6_CONTROLFLOWUNITL6_V
 
 `include "defs/CSRDefs.v"
 `include "defs/UArch.v"
+`include "hw/util/SeqAge.v"
+`include "intf/CommitNotif.v"
 `include "intf/D__XIntf.v"
 `include "intf/SquashNotif.v"
 `include "intf/X__WIntf.v"
@@ -22,7 +29,6 @@ module ControlFlowUnitL6 #(
 )(
   input  logic clk,
   input  logic rst,
-  input  logic flush = 1'b0,
 
   //----------------------------------------------------------------------
   // D <-> X Interface
@@ -39,8 +45,17 @@ module ControlFlowUnitL6 #(
   //----------------------------------------------------------------------
   // Squash Notification
   //----------------------------------------------------------------------
+  // squash: this unit's squash request (taken branches)
+  // squash_sub: the arbitrated squash, which may squash this unit
 
-  SquashNotif.pub squash
+  SquashNotif.pub squash,
+  SquashNotif.sub squash_sub,
+
+  //----------------------------------------------------------------------
+  // Commit Notification
+  //----------------------------------------------------------------------
+
+  CommitNotif.sub commit
 );
 
   localparam p_seq_num_bits   = D.p_seq_num_bits;
@@ -68,10 +83,27 @@ module ControlFlowUnitL6 #(
   logic   D_xfer;
   logic   W_xfer;
 
+  //----------------------------------------------------------------------
+  // Squashing
+  //----------------------------------------------------------------------
+
+  SeqAge seq_age (
+    .clk    (clk),
+    .rst    (rst),
+    .commit (commit)
+  );
+
+  logic should_squash;
+  assign should_squash = D_reg.val & squash_sub.val &
+                         seq_age.is_older( squash_sub.seq_num, D_reg.seq_num );
+
+  logic [31:0] unused_squash_sub_target;
+  assign unused_squash_sub_target = squash_sub.target;
+
   // verilator lint_off ENUMVALUE
 
   always_ff @( posedge clk ) begin
-    if( rst | flush )
+    if ( rst )
       D_reg <= '0;
     else
       D_reg <= D_reg_next;
@@ -83,7 +115,8 @@ module ControlFlowUnitL6 #(
 
     if ( D_xfer )
       D_reg_next = '{ 
-        val:     1'b1, 
+        val:     !( squash_sub.val &
+                    seq_age.is_older( squash_sub.seq_num, D.seq_num ) ),
         pc:      D.pc,
         seq_num: D.seq_num,
         op1:     D.op1,
@@ -94,7 +127,7 @@ module ControlFlowUnitL6 #(
         preg:    D.preg,
         ppreg:   D.ppreg
       };
-    else if ( W_xfer )
+    else if ( W_xfer | should_squash )
       D_reg_next = '0;
     else
       D_reg_next = D_reg;
@@ -124,7 +157,7 @@ module ControlFlowUnitL6 #(
 
   logic squash_sent;
   always_ff @( posedge clk ) begin
-    if( rst | flush )
+    if( rst )
       squash_sent <= 1'b0;
     else if( D_xfer )
       squash_sent <= 1'b0;
@@ -133,7 +166,7 @@ module ControlFlowUnitL6 #(
   end
 
   // Squash until message is taken
-  assign squash.val     = !p_commit_recovery & !flush & D_reg.val & should_branch & !squash_sent;
+  assign squash.val     = !p_commit_recovery & D_reg.val & should_branch & !squash_sent;
   assign squash.target  = D_reg.pc + D_reg.imm;
   assign squash.seq_num = D_reg.seq_num;
 
@@ -179,8 +212,8 @@ module ControlFlowUnitL6 #(
   // Assign remaining signals
   //----------------------------------------------------------------------
 
-  assign D.rdy = !flush & (W.rdy | (!D_reg.val));
-  assign W.val = !flush & (D_reg.val);
+  assign D.rdy = W.rdy | (!D_reg.val);
+  assign W.val = D_reg.val;
 
   //----------------------------------------------------------------------
   // Linetracing

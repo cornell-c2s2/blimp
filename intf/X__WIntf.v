@@ -81,12 +81,9 @@ interface X__WIntf
     output csr_wdata,
     output exc_val,
     output exc_cause,
-<<<<<<< Updated upstream
-    output exc_tval
-=======
+    output exc_tval,
     output redirect,
     output redirect_target
->>>>>>> Stashed changes
   );
 
   modport W_intf (
@@ -110,12 +107,9 @@ interface X__WIntf
     input  csr_wdata,
     input  exc_val,
     input  exc_cause,
-<<<<<<< Updated upstream
-    input  exc_tval
-=======
+    input  exc_tval,
     input  redirect,
     input  redirect_target
->>>>>>> Stashed changes
   );
 
 endinterface
