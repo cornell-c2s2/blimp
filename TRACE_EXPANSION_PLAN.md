@@ -1,6 +1,13 @@
 # CSR and exception trace expansion plan
 
-Status: design proposal; trace expansion is not implemented.
+> **Current design update (2026-11-01):** The implementation records the
+> committed CSR action (command, address, and source operand) instead of a
+> per-event CSR snapshot. It compares that action with the functional model,
+> matching the GPR writeback comparison. Trap cause and actual redirect output
+> remain in the event. Snapshot descriptions below are historical design notes;
+> `TRACE_EXECUTION_GUIDE.md` documents the current implementation.
+
+Status: implemented, with known RTL coverage gaps recorded in the execution guide.
 
 ## 1. Scope and purpose
 
@@ -29,8 +36,6 @@ Widths are explicit so the DPI representation can be checked mechanically.
 | gen_regs_waddr | 5 | Architectural destination register number; compare only when gen_regs_wen=1. |
 | gen_regs_wdata | 32 | Value written to that register; compare only when gen_regs_wen=1. |
 | trap | 1 | This instruction takes a synchronous exception; always compare. |
-| cause | 32 | Exception cause; compare only when trap=1. Full width avoids constraining the trace to the current internal cause width. |
-| tval | 32 | Value actually installed into mtval for this exception; compare only when trap=1. |
 | redirect_valid | 1 | This event applies a trap-entry or MRET redirect; always compare. |
 | redirect_pc | 32 | Target actually selected for that redirect; compare only when redirect_valid=1. |
 | mstatus | 32 | Architectural CSR value after this event; always compare. |
@@ -42,7 +47,7 @@ Widths are explicit so the DPI representation can be checked mechanically.
 | mtval | 32 | Architectural CSR value after this event; always compare. |
 | mip | 32 | Architectural CSR value after this event; currently zero in the model. Always compare; do not mask an RTL/model implementation mismatch. |
 
-Total: 424 meaningful bits; DPI storage requires 14 32-bit words (448 bits),
+Total: 360 meaningful bits; DPI storage requires 12 32-bit words (384 bits),
 with 24 unused high storage bits. Confirm this with $bits and a packing test.
 Do not assume that a C++ object's native memory layout matches this layout.
 
@@ -60,7 +65,8 @@ but use the validity conditions above when comparing them.
 - MRET has trap=0, gen_regs_wen=0, and redirect_valid=1.
 - trap=1 means the faulting instruction did not retire normally; it still emits
   an architectural event so the model and RTL remain aligned.
-- A trap event must satisfy tval=mtval in its post-event CSR snapshot.
+- For a trap event, mcause and mtval describe the cause and trap value written
+  by that event.
 - No event is emitted for a squashed instruction.
 - No instruction may generate duplicate events.
 - Ordinary branches and jumps have redirect_valid=0 in this phase: this field
@@ -89,11 +95,12 @@ explicit rather than adding an unobserved mode value. When multiple modes are
 implemented, add mode_before and mode_after, each two bits, to both trace producers
 and the checker, and define interrupt-event semantics at the same time.
 
-### Why both tval and mtval?
+### Why no separate cause and tval fields?
 
-tval describes the exception event; mtval describes resulting CSR state. They
-match on trap entry. On later non-trap instructions, mtval still holds state
-while the inactive tval field is zero and ignored.
+For the current synchronous-trap design, event-level cause/tval would duplicate
+the post-event mcause/mtval values. The trace therefore uses trap to mark a new
+exception and reads its details from mcause and mtval. This is smaller and keeps
+the CSR snapshot as the single source of trap-result state.
 
 ## 3. Example events
 
@@ -104,7 +111,7 @@ trap=0; redirect_valid=0. CSR snapshot equals the state after that instruction.
 
 ### ECALL at PC 0x010, mtvec=0x100
 
-pc=0x010; gen_regs_wen=0; trap=1; cause=11; tval=0;
+pc=0x010; gen_regs_wen=0; trap=1;
 redirect_valid=1; redirect_pc=0x100.
 Post-event snapshot includes mepc=0x010, mcause=11, mtval=0, and mstatus with
 MPIE copied from the old MIE and MIE cleared. Other CSRs retain their values.
@@ -249,7 +256,7 @@ do not confuse an unspecified field with an expected zero.
    hw/execute/execute_units_l8/CSR.v. Verify the existing baseline first, recording
    known RTL/model mismatches rather than changing expected values to hide them.
 2. Add the event schema and C++ packing support. Test field boundaries, including
-   non-word-aligned fields, with distinct values. Assert the 424-bit SV width.
+   non-word-aligned fields, with distinct values. Assert the 360-bit SV width.
 3. Add RTL observation and queue assembly. Check cycle alignment for normal CSR
    writes, trap entry, MRET, back-to-back events, and debug stepping.
 4. Update the subscriber and harness, then migrate one normal case and one ECALL

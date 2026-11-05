@@ -26,24 +26,11 @@ module BlimpV9_csrTestSuite_trap #(
     .p_mem_recv_intv_delay (p_mem_recv_intv_delay)
   ) h();
 
-  import "DPI-C" function bit fl_check_trap(
-    input int unsigned pc,
-    input int unsigned cause
-  );
-
   task check_trap(
     input logic [31:0] pc,
     input logic [31:0] cause
   );
-    if( !fl_check_trap( pc, cause ) )
-      $fatal( 1, "ISS did not produce trap cause %0d at %h", cause, pc );
-
-    // WCU L4 publishes a no-writeback tuple for the trapping instruction.
-    // The legacy RTL trace has no trap/cause fields. Handler CSR reads
-    // below verify the cause and saved PC through GPR writeback. Direct
-    // event comparison needs RTL trap/cause fields and matching ISS DPI.
-    // Bypass h.check_trace: the ISS trap step was already consumed above.
-    h.inst_trace_sub.check_trace( pc, 'x, 'x, 0 );
+    h.check_trap_trace( pc, cause );
   endtask
 
   `include "hw/top/test/test_cases/directed/trap_test_cases.v"

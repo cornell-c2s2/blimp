@@ -2,8 +2,8 @@
 `include "intf/D__XIntf.v"
 `include "intf/X__WIntf.v"
 `include "intf/CSRIntf.v"
-`include "hw/execute/execute_units_l8/CSR.v"
-`include "hw/execute/execute_units_l8/CSRFile.v"
+`include "hw/execute/execute_units_l9/CSR.v"
+`include "hw/csr/CSRFile.v"
 
 import UArch::*;
 

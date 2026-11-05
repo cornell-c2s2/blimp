@@ -11,6 +11,7 @@
 extern "C" void        fl_reset();
 extern "C" void        fl_init( uint32_t* addr, uint32_t* binary );
 extern "C" bool        fl_trace( uint32_t* trace );
+extern "C" bool        fl_arch_trace( uint32_t* trace );
 extern "C" const char* fl_trace_str( uint32_t* trace );
 
 #endif  // FL_FL_VTRACE_H

@@ -42,6 +42,17 @@ bool fl_trace( uint32_t* trace )
   }
 }
 
+bool fl_arch_trace( uint32_t* trace )
+{
+  try {
+    FLTrace next_trace = proc.step();
+    next_trace.arch_vrep( trace );
+    return true;
+  } catch ( ... ) {
+    return false;
+  }
+}
+
 //------------------------------------------------------------------------
 // Linetracing
 //------------------------------------------------------------------------

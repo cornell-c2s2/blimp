@@ -54,7 +54,11 @@ FLTrace FLProc::take_trap( uint32_t cause, uint32_t tval )
 {
   uint32_t inst_pc = pc;
   pc = csr.enter_trap( inst_pc, cause, tval );
-  return FLTrace( inst_pc, true, cause );
+  FLTrace trace( inst_pc, true, cause );
+  trace.set_trap_value( tval );
+  trace.set_redirect( pc );
+  trace.set_csr_action( FLTrace::CSR_CMD_NONE, 0, 0 );
+  return trace;
 }
 
 //------------------------------------------------------------------------
@@ -627,7 +631,10 @@ FLTrace FLProc::step()
 
     case MRET: {
         pc = csr.return_from_trap();
-        return FLTrace( inst_pc, 0, 0, false );
+        FLTrace trace( inst_pc, 0, 0, false );
+        trace.set_redirect( pc );
+        trace.set_csr_action( FLTrace::CSR_CMD_MRET, 0, 0 );
+        return trace;
       }
 
       // CSR operations capture the source before writing rd, including
@@ -651,6 +658,9 @@ FLTrace FLProc::step()
         return take_trap( 2, binary );
 
       uint32_t source = immediate ? inst.uimm() : regs[inst.rs1()];
+      uint32_t cmd = exchange ? FLTrace::CSR_CMD_WRITE
+                   : ( inst_name == CSRRS || inst_name == CSRRSI )
+                       ? FLTrace::CSR_CMD_SET : FLTrace::CSR_CMD_CLEAR;
       uint32_t old_val = ( exchange && inst.rd() == 0 )
                            ? 0 : csr.read( addr );
       if ( write ) {
@@ -664,8 +674,9 @@ FLTrace FLProc::step()
       if ( inst.rd() != 0 )
         regs[inst.rd()] = old_val;
       pc += 4;
-      return FLTrace( inst_pc, inst.rd(), regs[inst.rd()],
-                      inst.rd() != 0 );
+      FLTrace trace( inst_pc, inst.rd(), regs[inst.rd()], inst.rd() != 0 );
+      trace.set_csr_action( cmd, addr, source );
+      return trace;
     }
 
     default: {

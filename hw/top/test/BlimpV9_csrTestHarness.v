@@ -11,7 +11,7 @@
 `include "intf/MemIntf.v"
 `include "intf/InstTraceNotif.v"
 `include "test/fl/MemIntfTestServer_2Port.v"
-`include "test/fl/InstTraceSub.v"
+`include "test/fl/ArchTraceSub.v"
 `include "fl/fl_vtrace.v"
 
 import TestEnv::*;
@@ -91,6 +91,20 @@ module BlimpV9_csrTestHarness #(
     fl_init        ( addr, asm_binary );
   endtask
 
+  task check_trap_trace(
+    input logic [31:0] pc,
+    input logic [31:0] cause
+  );
+    logic success;
+    arch_trace_t golden_trace;
+    success = fl_arch_trace( golden_trace );
+    if( !success ) $fatal( 1, "ISS did not produce trap event at %h", pc );
+    `CHECK_EQ( golden_trace.pc, pc );
+    `CHECK_EQ( golden_trace.trap, 1'b1 );
+    `CHECK_EQ( golden_trace.trap_cause, cause[4:0] );
+    inst_trace_sub.check_arch_trace( golden_trace );
+  endtask
+
   task data(
     input logic [31:0] addr,
     input logic [31:0] data
@@ -128,11 +142,8 @@ module BlimpV9_csrTestHarness #(
   // Instruction Tracing
   //----------------------------------------------------------------------
 
-  InstTraceSub inst_trace_sub (
-    .pc    (inst_trace_notif.pc),
-    .waddr (inst_trace_notif.waddr),
-    .wdata (inst_trace_notif.wdata),
-    .wen   (inst_trace_notif.wen),
+  ArchTraceSub inst_trace_sub (
+    .arch  (inst_trace_notif.arch),
     .val   (inst_trace_notif.val),
     .*
   );
@@ -144,33 +155,28 @@ module BlimpV9_csrTestHarness #(
     input logic        wen
   );
     logic      success;
-    inst_trace golden_trace;
+    arch_trace_t golden_trace;
 
     // Directed CSR/trap tests have a bounded list of expected retirements.
     // Require every ISS step to succeed: check_traces() would return early
     // on a trap or unsupported instruction and could falsely pass.
     if( p_check_fl ) begin
-      success = fl_trace( golden_trace );
+      success = fl_arch_trace( golden_trace );
       if( !success )
         $fatal( 1, "ISS did not produce the expected retirement at %h", pc );
 
       `CHECK_EQ( golden_trace.pc,  pc  );
-      `CHECK_EQ( golden_trace.wen, wen );
+      `CHECK_EQ( golden_trace.gen_regs_wen, wen );
       if( wen ) begin
-        `CHECK_EQ( golden_trace.waddr, waddr );
-        `CHECK_EQ( golden_trace.wdata, wdata );
+        `CHECK_EQ( golden_trace.gen_regs_waddr, waddr );
+        `CHECK_EQ( golden_trace.gen_regs_wdata, wdata );
       end
 
-      inst_trace_sub.check_trace(
-        golden_trace.pc,
-        golden_trace.waddr,
-        golden_trace.wdata,
-        golden_trace.wen
-      );
+      inst_trace_sub.check_arch_trace( golden_trace );
       return;
     end
 
-    inst_trace_sub.check_trace(
+    inst_trace_sub.check_legacy(
       pc,
       waddr,
       wdata,
@@ -179,19 +185,14 @@ module BlimpV9_csrTestHarness #(
   endtask
 
   logic      check_traces_success;
-  inst_trace check_traces_fl_trace;
+  arch_trace_t check_traces_fl_trace;
 
   task check_traces();
     while( 1 ) begin
-      check_traces_success = fl_trace( check_traces_fl_trace );
+      check_traces_success = fl_arch_trace( check_traces_fl_trace );
       if( !check_traces_success ) return;
 
-      inst_trace_sub.check_trace(
-        check_traces_fl_trace.pc,
-        check_traces_fl_trace.waddr,
-        check_traces_fl_trace.wdata,
-        check_traces_fl_trace.wen
-      );
+      inst_trace_sub.check_arch_trace( check_traces_fl_trace );
     end
   endtask
 

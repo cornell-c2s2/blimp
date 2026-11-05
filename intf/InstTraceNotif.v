@@ -6,6 +6,8 @@
 `ifndef INTF_INST_TRACE_NOTIF_V
 `define INTF_INST_TRACE_NOTIF_V
 
+`include "types/ArchTrace.v"
+
 //------------------------------------------------------------------------
 // InstTraceNotif
 //------------------------------------------------------------------------
@@ -21,6 +23,7 @@ interface InstTraceNotif;
   logic [31:0] wdata;
   logic        wen;
   logic        val;
+  arch_trace_t arch;
 
   // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
   // Module-facing Ports
@@ -32,7 +35,8 @@ interface InstTraceNotif;
     output waddr,
     output wdata,
     output wen,
-    output val
+    output val,
+    output arch
   );
 
 endinterface

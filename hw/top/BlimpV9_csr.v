@@ -128,17 +128,12 @@ module BlimpV9_csr #(
   // Debug
   //----------------------------------------------------------------------
   
-  typedef struct packed {
-    logic [31:0] pc;
-    logic [4:0]  waddr;
-    logic [31:0] wdata;
-    logic        wen;
-  } trace_msg_t;
-  
+  `include "types/ArchTrace.v"
+  typedef arch_trace_t trace_msg_t;
+
   trace_msg_t trace_enq_msg;
   logic       trace_enq_val;
   logic       trace_enq_rdy;
-
   trace_msg_t trace_deq_msg;
   logic       trace_deq_val;
   logic       trace_deq_rdy;
@@ -166,14 +161,21 @@ module BlimpV9_csr #(
     end
   end
 
-  assign trace_enq_msg.pc    = commit_notif.pc;
-  assign trace_enq_msg.waddr = commit_notif.waddr;
-  assign trace_enq_msg.wdata = commit_notif.wdata;
-  assign trace_enq_msg.wen   = commit_notif.wen;
-  assign trace_enq_val       = commit_notif.val;
+  assign trace_enq_msg.pc             = commit_notif.pc;
+  assign trace_enq_msg.gen_regs_waddr = commit_notif.waddr;
+  assign trace_enq_msg.gen_regs_wdata = commit_notif.wdata;
+  assign trace_enq_msg.gen_regs_wen   = commit_notif.wen;
+  assign trace_enq_msg.trap           = csr_notif.val & csr_notif.exc_val;
+  assign trace_enq_msg.trap_cause     = csr_notif.exc_cause;
+  assign trace_enq_msg.redirect_valid = squash_arb_notif[2].val;
+  assign trace_enq_msg.redirect_pc    = squash_arb_notif[2].target;
+  assign trace_enq_msg.csr_action_valid = csr_notif.val;
+  assign trace_enq_msg.csr_cmd        = csr_notif.cmd;
+  assign trace_enq_msg.csr_addr       = csr_notif.addr;
+  assign trace_enq_msg.csr_wdata      = csr_notif.wdata;
+  assign trace_enq_val = commit_notif.val;
+  assign trace_deq_rdy = inst_trace_deq_rdy | ~debug;
 
-  assign trace_deq_rdy       = inst_trace_deq_rdy | ~debug;
-  
   cmn_Queue #(
     .p_type      (`CMN_QUEUE_PIPE),
     .p_msg_nbits ($bits(trace_msg_t)),
@@ -189,12 +191,13 @@ module BlimpV9_csr #(
     .deq_msg          (trace_deq_msg),
     .num_free_entries (trace_queue_free_entry)
   );
-  
-  assign inst_trace.pc    = trace_deq_msg.pc;
-  assign inst_trace.waddr = trace_deq_msg.waddr;
-  assign inst_trace.wdata = trace_deq_msg.wdata;
-  assign inst_trace.wen   = trace_deq_msg.wen;
-  assign inst_trace.val   = trace_deq_val;
+
+  assign inst_trace.pc = trace_deq_msg.pc;
+  assign inst_trace.val = trace_deq_val;
+  assign inst_trace.waddr = trace_deq_msg.gen_regs_waddr;
+  assign inst_trace.wdata = trace_deq_msg.gen_regs_wdata;
+  assign inst_trace.wen   = trace_deq_msg.gen_regs_wen;
+  assign inst_trace.arch  = trace_deq_msg;
 
   //----------------------------------------------------------------------
   // Units
