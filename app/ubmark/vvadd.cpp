@@ -18,7 +18,9 @@ int dest[100];
 int main( void )
 {
   int start_cycles = blimp_cycle_count();
+  blimp_stats_on();
   vvadd( dest, eval_src0, eval_src1, eval_size );
+  blimp_stats_off();
   int end_cycles = blimp_cycle_count();
 
   blimp_wprintf( L"vvadd completed in %d cycles\n",

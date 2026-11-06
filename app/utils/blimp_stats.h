@@ -18,6 +18,8 @@ extern "C" {
 
 #include <stdint.h>
 uint32_t blimp_cycle_count();
+void blimp_stats_on();
+void blimp_stats_off();
 
 #ifdef __cplusplus
 }
@@ -31,7 +33,8 @@ uint32_t blimp_cycle_count();
 
 // No strict notion of cycles
 #define blimp_cycle_count() 0
-
+#define blimp_stats_on()
+#define blimp_stats_off()
 #endif
 
 #endif  // BLIMP_STATS_H

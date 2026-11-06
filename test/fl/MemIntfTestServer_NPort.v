@@ -34,11 +34,16 @@ module MemIntfTestServer_NPort #(
   //----------------------------------------------------------------------
 
   logic [31:0] mem [logic [31:0]];
+  logic stats_en;
 
+  // verilator lint_off BLKSEQ
   always @( posedge clk ) begin
-    if( rst )
+    if( rst ) begin
       mem.delete();
+      stats_en = 1'b0;
+    end
   end
+  // verilator lint_on BLKSEQ
 
   function void init_mem(
     input logic [31:0] addr,
@@ -52,6 +57,7 @@ module MemIntfTestServer_NPort #(
   //----------------------------------------------------------------------
 
   localparam CYCLE_COUNT_ADDR = 32'hFFFFFF00;
+  localparam STATS_EN_ADDR = 32'hFFFFFF04;
 
   logic [31:0] cycle_count;
 
@@ -91,6 +97,13 @@ module MemIntfTestServer_NPort #(
           write_data[23:16] = req.data[23:16];
         if( ( req.strb & 4'b1000 ) > 0 )
           write_data[31:24] = req.data[31:24];
+
+        if( req.addr == STATS_EN_ADDR ) begin
+          stats_en  = req.data[0];
+          resp.data = 'x;
+          resp.strb = req.strb;
+          return resp;
+        end
 
         if( req.strb == 4'b1111 ) begin
           if( try_fl_write(req.addr, write_data) );

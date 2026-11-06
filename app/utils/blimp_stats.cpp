@@ -13,4 +13,7 @@ uint32_t blimp_cycle_count()
   return *cycle_count_addr;
 }
 
+void blimp_stats_on()  { *(volatile uint32_t*) 0xFFFFFF04 = 1; }
+void blimp_stats_off() { *(volatile uint32_t*) 0xFFFFFF04 = 0; }
+
 #endif  // _RISCV

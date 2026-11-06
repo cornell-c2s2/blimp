@@ -42,8 +42,10 @@ int idxs[20];
 int main( void )
 {
   int start_cycles = blimp_cycle_count();
+  blimp_stats_on();
   bsearch( idxs, eval_search_keys, eval_search_keys_size,
            eval_sorted_keys, eval_sorted_keys_size );
+  blimp_stats_off();
   int end_cycles = blimp_cycle_count();
 
   blimp_wprintf( L"bsearch completed in %d cycles\n",
