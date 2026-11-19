@@ -320,6 +320,8 @@ foreach(V_TEST_FILE_REL_PATH ${V_TEST_FILES})
   # Add the C++ wrapper separately to avoid Verilator flag inheritance
   target_sources(${V_TEST_BIN} PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/fl/fl_fpadd.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/hw/execute/test/test_cases/sf_wrap.c"
+
   )
   target_include_directories(${V_TEST_BIN} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
