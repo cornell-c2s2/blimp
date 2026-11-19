@@ -1,11 +1,12 @@
-#include "softfloat.h"
+#include <cstdint>
 
-unsigned int sf_fdiv(unsigned int a, unsigned int b) {
-  float32_t fa, fb, fr;
+extern "C" {
+#include "softfloat.h"
+}
+
+extern "C" uint32_t sf_fdiv(uint32_t a, uint32_t b) {
+  float32_t fa, fb;
   fa.v = a;
   fb.v = b;
-  softfloat_roundingMode  = softfloat_round_near_even;
-  softfloat_exceptionFlags = 0;
-  fr = f32_div(fa, fb);
-  return fr.v;
+  return f32_div(fa, fb).v;
 }
