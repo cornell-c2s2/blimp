@@ -2,6 +2,11 @@
 // FDiv.v
 //========================================================================
 // Single-precision floating-point divider (FDIV.S).
+//
+// Behavior:
+//   - Round to nearest, ties to even
+//   - Subnormal inputs are treated as zero, subnormal results flush to zero
+//   - Any NaN input, 0/0 and inf/inf return the canonical NaN 7fc00000
 //========================================================================
 
 `ifndef HW_EXECUTE_EXECUTE_UNITS_L8_FDIV_V
@@ -14,66 +19,61 @@
 import UArch::*;
 
 
+//------------------------------------------------------------------------
+// FPRound
+//------------------------------------------------------------------------
+// Round to nearest even, fix up mantissa spillover, then check overflow
+// and underflow. The exponent is a 10-bit SIGNED value so that negative
+// (underflowing) and large (overflowing) exponents do not wrap.
+//------------------------------------------------------------------------
+
 module FPRound (
-  input  logic        sign,
-  input  logic [7:0]  exp,
-  input  logic [23:0] mant,     // HAS IMPLICT 1
-  input  logic        guard, round, sticky,
-  output logic [31:0] round_result
+  input  logic               sign,
+  input  logic signed [9:0]  exp,
+  input  logic        [23:0] mant,     // HAS IMPLICIT 1
+  input  logic               guard, round, sticky,
+  output logic        [31:0] round_result
 );
-// Guard, the MSB bit that will be dropped, if 0 it is less than 0.5, if 1 it is 0.5 or more
-// Round; the 2nd MSB dropped bit, is worth 0.25. Helps break the tie if guard = 1;
-// Sticky; the OR result of every bit after, we don't care abt the indiviudal bits, just if atleast one bit is high
-// Say we round 3.14159 (PI) to two decimals
-// Kept: 3.14
-// Guard: 1
-// Round: 5
-// Sticky: High, b/c 9 is nonzero
-// Tell us if what we are throwing away is half, less than half, or exactly half
+  // Guard  : MSB of the dropped bits (>= 0.5 ulp if 1)
+  // Round  : 2nd MSB of the dropped bits (0.25 ulp)
+  // Sticky : OR of every bit below round
+  // Round up if guard && (round || sticky || lsb)   (lsb breaks exact ties)
 
-// step1: Decide to round up or down
-// step2 If rounding, add 1 to the mantissa
-// step3: adding the 1 could have made our val spill over, i.e 9.99 -> 10.00, need to shift mantissa right, add 1 to exponent
-// step4: Check if exponenet is too big or too small (inf or 0)
-// step5: repack the value and return it?
-// 1.4999 -> 1
-// 1.5 -> 2
-// 2.5 -> 2 // rounded down for nearest even
-// 3.5 -> 4 // rounded up for nearest even
-// Check overflow due to rounding, as well as regular overflow from our final result?
-// I think we only hae to check once after the round?
-  logic        increment; // 1 round up, 0 = round down / drop the bits
-  logic [24:0] mant_sum;  // Mantissa after adding inc
-  logic [24:0] mant_post; // Mantissa after potentially adjusting for spillover
-  logic [9:0]  exp_post;  // Exponenet after potnetially adjusting for spillover
-  assign increment = guard && (round || sticky || mant[0]); // mant[0] is the tiebreaker
+  logic              increment;  // 1 = round up, 0 = drop the bits
+  logic        [24:0] mant_sum;  // Mantissa after adding increment
+  logic        [24:0] mant_post; // Mantissa after spillover adjustment
+  logic signed [9:0]  exp_post;  // Exponent after spillover adjustment
 
-  // Adjust mantissa and exponent if spillover
-  assign mant_sum = mant + increment;
+  assign increment = guard && (round || sticky || mant[0]);
+  assign mant_sum  = {1'b0, mant} + {24'b0, increment};
+
   always_comb begin
-    // default vals
-    exp_post = {2'b0, exp};
+    exp_post  = exp;
     mant_post = mant_sum;
-    if(mant_sum[24] == 1'b1) begin // there was spillover, need to adjust the mantissa and exponent
+
+    if (mant_sum[24] == 1'b1) begin // spillover: 1.111.. + ulp = 10.000..
       mant_post = mant_sum >> 1;
-      exp_post = {2'b0, exp} + 1;
+      exp_post  = exp + 10'sd1;
     end
-    // Overflow / underflow check, after spillover adjustment
-    if (exp_post > 10'd254) begin
-      round_result = {sign, 8'd255, 23'b0};   // overflow becomes signed inf
+
+    // Both operands are signed, so these are signed compares
+    if (exp_post > 10'sd254) begin
+      round_result = {sign, 8'd255, 23'b0};   // overflow -> signed inf
     end
-    else if (exp_post < 10'd1) begin
+    else if (exp_post < 10'sd1) begin
       round_result = {sign, 8'd0, 23'b0};     // underflow -> signed zero
     end
     else begin
-      round_result = {sign, exp_post[7:0], mant_post[22:0]}; // No overflowm just return the packed result with sign bit, exp, and mantissa
+      round_result = {sign, exp_post[7:0], mant_post[22:0]};
     end
   end
 
-
-
 endmodule
 
+
+//------------------------------------------------------------------------
+// FDiv
+//------------------------------------------------------------------------
 
 module FDiv (
   input  logic clk,
@@ -146,7 +146,7 @@ module FDiv (
   end
 
   //----------------------------------------------------------------------
-  // DIVIDE LOGIC-- PUT ALL UR WORK HERE SHEHROZE!!
+  // Divide logic
   //----------------------------------------------------------------------
 
   localparam p_expwidth = 8;
@@ -154,25 +154,30 @@ module FDiv (
   localparam p_opwidth  = 1 + p_expwidth + p_frwidth;
 
   // Registers for the calculation stage
-  logic [24:0] rem;
-  logic [24:0] divisor;
-  logic [25:0] quotient;
-  logic [4:0]  count;
-  logic [24:0] next_rem;
-  logic [25:0] next_quotient;
-  logic        sticky;
-  logic [p_expwidth-1:0] exp_calc;
-  logic [p_expwidth-1:0] exp_reg;
-  logic sign_reg;
-  logic [p_expwidth-1:0] next_exp;
-  logic [31:0] result;
+  //   quotient is 27 bits: bit 26 is the integer bit (1 if op1 >= op2),
+  //   bits 25:0 are fraction bits. 27 iterations give us enough bits to
+  //   still have a real round bit after a normalize shift.
+  logic        [24:0] rem;
+  logic        [24:0] divisor;
+  logic        [26:0] quotient;
+  logic         [4:0] count;
+  logic        [24:0] next_rem;
+  logic        [26:0] next_quotient;
+  logic               sticky;
+
+  // Exponents are 10-bit signed so under/overflow does not wrap
+  logic signed [9:0]  exp_calc;
+  logic signed [9:0]  exp_reg;
+  logic signed [9:0]  next_exp_normalized;
+  logic        [26:0] next_quotient_normalized;
+  logic               sign_reg;
+  logic        [31:0] result;
 
   // Special case handling signals
-  logic is_special_case; // Will be the select for final output mux, for either the value from special case computation, or normal divison val
+  logic        is_special_case;
   logic [31:0] special_result;
-  logic  is_special_case_reg;
+  logic        is_special_case_reg;
   logic [31:0] special_result_reg;
-
 
   typedef enum {
     IDLE,
@@ -193,43 +198,55 @@ module FDiv (
     else
       cur_state <= next_state;
   end
-    //D_xfer tells us when a new instruction needs to be loaded in, W_xfer tells us when the output is ready receive.
+
+  // D_xfer: a new instruction is loaded. W_xfer: the output was taken.
   always_comb begin
     next_state = cur_state;
-    case(cur_state) 
-        IDLE: if(D_xfer) next_state = UNPACK;
-        UNPACK: begin // If it's a special case, just go straight to done
-          if(is_special_case)
-            next_state = DONE;
+    case(cur_state)
+      IDLE: if(D_xfer) next_state = UNPACK;
+      UNPACK: begin // special cases skip straight to DONE
+        if(is_special_case)
+          next_state = DONE;
+        else
+          next_state = CALC;
+      end
+      CALC:      if(calc_done) next_state = NORMALIZE;
+      NORMALIZE: next_state = ROUND;
+      ROUND:     next_state = DONE;
+      DONE: begin
+        if(W_xfer) begin
+          if(D_xfer)
+            next_state = UNPACK; // go directly to UNPACK, no wasted cycle
           else
-            next_state = CALC;
+            next_state = IDLE;
         end
-        CALC: if(calc_done) next_state = NORMALIZE;
-        NORMALIZE: next_state = ROUND;
-        ROUND: next_state = DONE;
-        DONE: begin
-            if(W_xfer) begin
-                if(D_xfer)
-                    next_state = UNPACK; // prevents wasting a cycle as we can go directly to UNPACK
-                else
-                    next_state = IDLE;
-            end
-        end
+      end
+      default: next_state = IDLE;
     endcase
   end
 
+  //----------------------------------------------------------------------
+  // UNPACK: field extraction and special case detection
+  //----------------------------------------------------------------------
+
   logic sn_dividend; // sign bits
   logic sn_divisor;
-  logic [p_expwidth-1:0] exp_dividend; // exponent fields
-  logic [p_expwidth-1:0] exp_divisor ;
-  logic [p_frwidth-1:0]  fr_dividend ; // raw fraction bits, we haven't added the hidden 1 back yet.
-  logic [p_frwidth-1:0]  fr_divisor  ;
-  logic [p_frwidth:0] sig_dividend, sig_divisor;
+  logic [p_expwidth-1:0] exp_dividend;
+  logic [p_expwidth-1:0] exp_divisor;
+  logic [p_frwidth-1:0]  fr_dividend;
+  logic [p_frwidth-1:0]  fr_divisor;
+  logic [p_frwidth:0]    sig_dividend, sig_divisor;
   logic snR_unpack;
 
-  // Special cases to handle:0/0, inf/inf, x/0, inf/x, NaN input, x/inf, 0/x 
+  logic nan_dividend, nan_divisor;
+  logic inf_dividend, inf_divisor;
+  logic zero_dividend, zero_divisor;
+
+  // Special cases: NaN input, 0/0, inf/inf, x/0, inf/x, x/inf, 0/x
+  // exp == 0 is treated as zero whatever the fraction is (subnormal
+  // inputs are flushed to zero).
   always_comb begin
-    // need default values for everything to avoid inferred dlatches
+    // defaults for everything to avoid inferred latches
     sn_dividend     = 1'b0;
     sn_divisor      = 1'b0;
     fr_dividend     = '0;
@@ -239,73 +256,122 @@ module FDiv (
     sig_dividend    = '0;
     sig_divisor     = '0;
     snR_unpack      = 1'b0;
+    nan_dividend    = 1'b0;
+    nan_divisor     = 1'b0;
+    inf_dividend    = 1'b0;
+    inf_divisor     = 1'b0;
+    zero_dividend   = 1'b0;
+    zero_divisor    = 1'b0;
     is_special_case = 1'b0;
     special_result  = 32'b0;
 
-    if(cur_state == UNPACK) begin // Don't think we need this check, as these values won't latch if we aren't in UNPAC
-            sn_dividend  = D_reg.op1[p_opwidth-1];
-            sn_divisor   = D_reg.op2[p_opwidth-1];
-            fr_dividend  = D_reg.op1[p_frwidth-1:0];
-            fr_divisor   = D_reg.op2[p_frwidth-1:0];
-            exp_dividend = D_reg.op1[p_opwidth-2 -: p_expwidth];
-            exp_divisor  = D_reg.op2[p_opwidth-2 -: p_expwidth];
-            sig_dividend = {1'b1, fr_dividend};
-            sig_divisor  = {1'b1, fr_divisor};
-            snR_unpack   = sn_dividend ^ sn_divisor;
-            
-            // CHECK FOR SPECIAL CASES
-            is_special_case = 1;
-            special_result = 0;
-            // 0 / 0 is NAN
-            if(exp_divisor == 0 && fr_divisor == 0 && exp_dividend == 0 && fr_dividend == 0) begin
-                special_result = 32'h7FC0_0000; // NaN is exp = 255, and mantissa != 0
-            end
-            // Divide by zero
-            else if(exp_divisor == 0 && fr_divisor == 0) begin // Check the raw fractioanl bits, before we add back the hidden 1
-                special_result = {snR_unpack, 8'd255, 23'b0}; // signed infinity
-            end // infinity divided by infinity
-            else if(exp_divisor == 255 && fr_divisor == 0 && exp_dividend == 255 && fr_dividend == 0) begin
-                special_result = 32'h7FC0_0000; // NaN 
-            end // infinity / x
-            else if(exp_dividend == 255 && fr_dividend == 0) begin
-              special_result = {snR_unpack, 8'd255, 23'b0}; // return SIGNED infinity
-            end // x / infinty -> signed zero
-            else if(exp_divisor == 255 && fr_divisor == 0) begin
-                special_result = {snR_unpack, 8'd0, 23'b0}; // signed zero
-            end // 0 / x
-            else if(exp_dividend == 0 && fr_dividend == 0) begin
-                special_result = {snR_unpack, 8'd0, 23'b0}; // signed zero
-            end
-            else begin
-              is_special_case = 0;
-            end
+    if(cur_state == UNPACK) begin
+      sn_dividend  = D_reg.op1[p_opwidth-1];
+      sn_divisor   = D_reg.op2[p_opwidth-1];
+      fr_dividend  = D_reg.op1[p_frwidth-1:0];
+      fr_divisor   = D_reg.op2[p_frwidth-1:0];
+      exp_dividend = D_reg.op1[p_opwidth-2 -: p_expwidth];
+      exp_divisor  = D_reg.op2[p_opwidth-2 -: p_expwidth];
+      sig_dividend = {1'b1, fr_dividend};
+      sig_divisor  = {1'b1, fr_divisor};
+      snR_unpack   = sn_dividend ^ sn_divisor;
 
+      nan_dividend  = (exp_dividend == 8'd255) && (fr_dividend != '0);
+      nan_divisor   = (exp_divisor  == 8'd255) && (fr_divisor  != '0);
+      inf_dividend  = (exp_dividend == 8'd255) && (fr_dividend == '0);
+      inf_divisor   = (exp_divisor  == 8'd255) && (fr_divisor  == '0);
+      zero_dividend = (exp_dividend == 8'd0);   // subnormals flush to zero
+      zero_divisor  = (exp_divisor  == 8'd0);
+
+      is_special_case = 1'b1;
+
+      if (nan_dividend || nan_divisor)
+        special_result = 32'h7FC0_0000;                      // NaN in -> canonical NaN
+      else if (zero_dividend && zero_divisor)
+        special_result = 32'h7FC0_0000;                      // 0 / 0
+      else if (inf_dividend && inf_divisor)
+        special_result = 32'h7FC0_0000;                      // inf / inf
+      else if (zero_divisor)
+        special_result = {snR_unpack, 8'd255, 23'b0};        // x / 0 -> signed inf
+      else if (inf_dividend)
+        special_result = {snR_unpack, 8'd255, 23'b0};        // inf / x -> signed inf
+      else if (inf_divisor)
+        special_result = {snR_unpack, 8'd0, 23'b0};          // x / inf -> signed zero
+      else if (zero_dividend)
+        special_result = {snR_unpack, 8'd0, 23'b0};          // 0 / x -> signed zero
+      else
+        is_special_case = 1'b0;
     end
   end
 
-  // Update the states of the calculation registers
+  //----------------------------------------------------------------------
+  // CALC: iterative significand division (27 iterations)
+  //----------------------------------------------------------------------
+
+  assign calc_done = (count == 5'd26);
+  // 10-bit signed: exp_a - exp_b + bias. Never wraps (range -126 .. 380).
+  assign exp_calc  = $signed({2'b00, exp_dividend}) - $signed({2'b00, exp_divisor}) + 10'sd127;
+  // Sticky: anything left in the remainder, or the extra bit below round
+  assign sticky    = (rem != 25'b0) || quotient[0];
+
+  always_comb begin
+    next_rem      = rem;
+    next_quotient = quotient;
+    if (cur_state == CALC) begin
+      if (rem >= divisor) begin
+        next_rem      = (rem - divisor) << 1;
+        next_quotient = {quotient[25:0], 1'b1};
+      end
+      else begin
+        next_rem      = rem << 1;
+        next_quotient = {quotient[25:0], 1'b0};
+      end
+    end
+  end
+
+  //----------------------------------------------------------------------
+  // NORMALIZE: quotient is in [0.5, 2). If the integer bit is 0, shift
+  // left one and decrement the exponent. The shifted-in 0 lands in the
+  // sticky position, so it never creates a fake round bit.
+  //----------------------------------------------------------------------
+
+  always_comb begin
+    next_quotient_normalized = quotient;
+    next_exp_normalized      = exp_reg;
+    if (cur_state == NORMALIZE) begin
+      if (quotient[26] == 1'b0) begin
+        next_quotient_normalized = quotient << 1;
+        next_exp_normalized      = exp_reg - 10'sd1;
+      end
+    end
+  end
+
+  // Update the calculation registers
   always_ff @(posedge clk) begin
-      if ( rst ) begin
-      rem      <= 25'b0;
-      divisor  <= 25'b0;
-      quotient <= 26'b0;
-      count    <= 5'b0;
+    if ( rst ) begin
+      rem                 <= 25'b0;
+      divisor             <= 25'b0;
+      quotient            <= 27'b0;
+      count               <= 5'b0;
+      exp_reg             <= 10'sd0;
+      sign_reg            <= 1'b0;
+      is_special_case_reg <= 1'b0;
+      special_result_reg  <= 32'b0;
     end
     else if ( cur_state == UNPACK ) begin
-      rem      <= {1'b0, sig_dividend};
-      divisor  <= {1'b0, sig_divisor};
-      quotient <= 26'b0;
-      count    <= 5'b0;
-      exp_reg  <= exp_calc;
-      sign_reg <= snR_unpack;
-      // need to now latch the special case value/result
+      rem                 <= {1'b0, sig_dividend};
+      divisor             <= {1'b0, sig_divisor};
+      quotient            <= 27'b0;
+      count               <= 5'b0;
+      exp_reg             <= exp_calc;
+      sign_reg            <= snR_unpack;
       is_special_case_reg <= is_special_case;
       special_result_reg  <= special_result;
     end
     else if ( cur_state == CALC ) begin
       rem      <= next_rem;
       quotient <= next_quotient;
-      count    <= count + 1;
+      count    <= count + 5'd1;
     end
     else if ( cur_state == NORMALIZE ) begin
       quotient <= next_quotient_normalized;
@@ -313,75 +379,34 @@ module FDiv (
     end
   end
 
-  // Iterative significand division
-  assign calc_done = (count == 5'd25);
-  assign exp_calc = exp_dividend - exp_divisor + 8'd127; // Add back the exponent normalizaiton
-  assign sticky = (rem != 25'b0); // Check the sticky bit
-  always_comb begin
-    next_rem = rem; // Default values
-    next_quotient = quotient;
-    if (cur_state == CALC) begin
-       if(rem >= divisor) begin
-          next_rem = (rem - divisor) << 1;
-          next_quotient = {quotient[24:0], 1'b1};
-       end
-       else begin
-          next_rem = rem << 1;
-          next_quotient = {quotient[24:0], 1'b0};
-       end
-    end
-  end
+  //----------------------------------------------------------------------
+  // ROUND
+  //----------------------------------------------------------------------
 
-  // Our value should now be in between 0.5 and 2. If it is less than 1, we need to shift left by 1, and
-  // decrement our exponenet value by one.
-  // Our value is less than 1 if MSB is 0
   logic [31:0] round_result;
   FPRound fp_round_inst (
-  .sign   (sign_reg),
-  .exp    (exp_reg),
-  .mant   (quotient[25:2]),
-  .guard  (quotient[1]),
-  .round  (quotient[0]),
-  .sticky (sticky),
-  .round_result (round_result)
+    .sign         (sign_reg),
+    .exp          (exp_reg),
+    .mant         (quotient[26:3]),
+    .guard        (quotient[2]),
+    .round        (quotient[1]),
+    .sticky       (sticky),
+    .round_result (round_result)
   );
 
-  logic [25:0] next_quotient_normalized;
-  logic [7:0]  next_exp_normalized;
-  always_comb begin 
-    next_quotient_normalized = quotient;
-    next_exp_normalized = exp_reg;
-    if(cur_state == NORMALIZE) begin
-      if(quotient[25] == 1'b0) begin
-        next_quotient_normalized = quotient << 1;
-        next_exp_normalized = exp_reg - 1;
-      end
-    end
-  end
-
-  always_comb begin // Final result selection,
-    if(is_special_case_reg)
+  // Final result selection
+  always_comb begin
+    if (is_special_case_reg)
       result = special_result_reg;
     else
       result = round_result;
   end
 
-
-
-  // TODO: register the sign bit (snr_unpack) so it is stored and avaialble in ROUND
-  // TODO: in ROUND, hook up FPround with sign/exp/mantissa/guard/round/sticky, output goes to result
-  // TODO: fix wen, shouldn't just be 1
-  // TODO: handle special cases (NaN/inf/zero/div0), they'd skip straight to DONE
-  // TODO: hook into blimp (interface, writeback sel, ..? check what telse
-
-  // Exceptions
-
-
   //----------------------------------------------------------------------
   // Outputs
   //----------------------------------------------------------------------
 
-  assign D.rdy = W_xfer  || !D_reg.val;
+  assign D.rdy = W_xfer || !D_reg.val;
   assign W.val = D_reg.val && (cur_state == DONE);
 
   assign W.pc      = D_reg.pc;
@@ -428,4 +453,3 @@ module FDiv (
 endmodule
 
 `endif // HW_EXECUTE_EXECUTE_UNITS_L8_FDIV_V
-

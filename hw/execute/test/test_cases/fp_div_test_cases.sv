@@ -10,11 +10,11 @@
 `ifndef FDIV_TEST_CASES_SV
 `define FDIV_TEST_CASES_SV
 
+import "DPI-C" function int unsigned sf_fdiv(input int unsigned a, input int unsigned b);
+
 //----------------------------------------------------------------------
 // test_case_fdiv_basic
 //----------------------------------------------------------------------
-
-import "DPI-C" function int unsigned sf_fdiv(input int unsigned a, input int unsigned b);
 
 task test_case_fdiv_basic();
   t.test_case_begin("test_case_fdiv_basic");
@@ -104,7 +104,7 @@ task test_case_fdiv_edge();
       recv('0, 0, 5'h1, 32'h3f800000, 1); // 1.0
       recv('1, 1, 5'h2, 32'h42c80000, 1); // 100.0
       recv('0, 2, 5'h3, 32'h3f000000, 1); // 0.5
-      recv('1, 3, 5'h4, 32'h7f800000, 1); // +inf   (confirm intended behavior)
+      recv('1, 3, 5'h4, 32'h7f800000, 1); // +inf
       recv('0, 4, 5'h5, 32'h00000000, 1); // 0.0
       recv('1, 5, 5'h6, 32'h7fc00000, 1); // NaN
       recv('0, 6, 5'h7, 32'h7f800000, 1); // +inf
@@ -157,6 +157,14 @@ task test_case_fdiv_subnormal();
   t.test_case_end();
 endtask
 
+//----------------------------------------------------------------------
+// test_case_fdiv_random
+//----------------------------------------------------------------------
+// Exponents are limited to 65..189 so that every result exponent
+// (ex - ey + 127, minus 1 for a normalize shift, plus 1 for a rounding
+// spill) stays inside 1..254. That keeps results normal, so SoftFloat
+// (which does not flush) and the flush-to-zero DUT always agree.
+//----------------------------------------------------------------------
 
 task test_case_fdiv_random();
   int          i;
@@ -172,8 +180,8 @@ task test_case_fdiv_random();
   for ( i = 0; i < 50; i = i + 1 ) begin
     sx = 1'($urandom_range(1, 0));
     sy = 1'($urandom_range(1, 0));
-    ex = 8'($urandom_range(190, 64));
-    ey = 8'($urandom_range(190, 64));
+    ex = 8'($urandom_range(189, 65));
+    ey = 8'($urandom_range(189, 65));
     x  = {sx, ex, 23'($urandom())};
     y  = {sy, ey, 23'($urandom())};
 
@@ -182,25 +190,152 @@ task test_case_fdiv_random();
     pc  = 32'h200 + 32'(i) * 4;
     seq = p_seq_num_bits'(i);   // wraps naturally for narrow seq widths
 
-    send( pc, seq, x, y, 5'h8, OP_FDIV_S );
-    recv( pc, seq, 5'h8, expected, 1'b1 );
+    // send and recv run together so a blocking send can never starve recv
+    fork
+      send( pc, seq, x, y, 5'h8, OP_FDIV_S );
+      recv( pc, seq, 5'h8, expected, 1'b1 );
+    join
   end
 
   t.test_case_end();
 endtask
 
+//----------------------------------------------------------------------
+// test_case_fdiv_special
+//----------------------------------------------------------------------
+// Infinity and zero operands. Expects RISC-V behavior: any invalid
+// operation (inf/inf, 0/0) returns the canonical NaN 7fc00000.
+//----------------------------------------------------------------------
+
+task test_case_fdiv_special();
+  t.test_case_begin("test_case_fdiv_special");
+  if (!t.run_test) return;
+
+  fork
+    begin
+      //   pc  seq_num op1          op2          waddr uop
+      send('0, 0, 32'h7f800000, 32'h7f800000, 5'h1, OP_FDIV_S); // inf / inf
+      send('1, 1, 32'h40a00000, 32'h7f800000, 5'h2, OP_FDIV_S); // 5.0 / inf
+      send('0, 2, 32'hc0a00000, 32'h7f800000, 5'h3, OP_FDIV_S); // -5.0 / inf
+      send('1, 3, 32'h7f800000, 32'h40a00000, 5'h4, OP_FDIV_S); // inf / 5.0
+      send('0, 4, 32'hff800000, 32'h40a00000, 5'h5, OP_FDIV_S); // -inf / 5.0
+      send('1, 5, 32'h7f800000, 32'h00000000, 5'h6, OP_FDIV_S); // inf / 0
+      send('0, 6, 32'h7f800000, 32'h80000000, 5'h7, OP_FDIV_S); // inf / -0
+      send('1, 7, 32'h40a00000, 32'h80000000, 5'h8, OP_FDIV_S); // 5.0 / -0
+    end
+
+    begin
+      //   pc  seq_num waddr wdata        wen
+      recv('0, 0, 5'h1, 32'h7fc00000, 1); // NaN
+      recv('1, 1, 5'h2, 32'h00000000, 1); // +0
+      recv('0, 2, 5'h3, 32'h80000000, 1); // -0
+      recv('1, 3, 5'h4, 32'h7f800000, 1); // +inf
+      recv('0, 4, 5'h5, 32'hff800000, 1); // -inf
+      recv('1, 5, 5'h6, 32'h7f800000, 1); // +inf
+      recv('0, 6, 5'h7, 32'hff800000, 1); // -inf
+      recv('1, 7, 5'h8, 32'hff800000, 1); // -inf
+    end
+  join
+
+  t.test_case_end();
+endtask
+
+//----------------------------------------------------------------------
+// test_case_fdiv_zero_nan
+//----------------------------------------------------------------------
+// Divide by zero and NaN propagation. Quiet and signaling NaN inputs
+// should all produce the canonical NaN.
+//----------------------------------------------------------------------
+
+task test_case_fdiv_zero_nan();
+  t.test_case_begin("test_case_fdiv_zero_nan");
+  if (!t.run_test) return;
+
+  fork
+    begin
+      //   pc  seq_num op1          op2          waddr uop
+      send('0, 0, 32'h00000000, 32'h00000000, 5'h1, OP_FDIV_S); // 0 / 0
+      send('1, 1, 32'h80000000, 32'h80000000, 5'h2, OP_FDIV_S); // -0 / -0
+      send('0, 2, 32'hc0a00000, 32'h80000000, 5'h3, OP_FDIV_S); // -5.0 / -0
+      send('1, 3, 32'h00000000, 32'h80000000, 5'h4, OP_FDIV_S); // 0 / -0
+      send('0, 4, 32'h7fc00000, 32'h3f800000, 5'h5, OP_FDIV_S); // qNaN / 1.0
+      send('1, 5, 32'h3f800000, 32'h7fc00000, 5'h6, OP_FDIV_S); // 1.0 / qNaN
+      send('0, 6, 32'h7fa00000, 32'h3f800000, 5'h7, OP_FDIV_S); // sNaN / 1.0
+      send('1, 7, 32'h3f800000, 32'h7f800001, 5'h8, OP_FDIV_S); // 1.0 / sNaN
+    end
+
+    begin
+      //   pc  seq_num waddr wdata        wen
+      recv('0, 0, 5'h1, 32'h7fc00000, 1); // NaN
+      recv('1, 1, 5'h2, 32'h7fc00000, 1); // NaN
+      recv('0, 2, 5'h3, 32'h7f800000, 1); // +inf
+      recv('1, 3, 5'h4, 32'h7fc00000, 1); // NaN
+      recv('0, 4, 5'h5, 32'h7fc00000, 1); // NaN
+      recv('1, 5, 5'h6, 32'h7fc00000, 1); // NaN
+      recv('0, 6, 5'h7, 32'h7fc00000, 1); // canonical NaN
+      recv('1, 7, 5'h8, 32'h7fc00000, 1); // canonical NaN
+    end
+  join
+
+  t.test_case_end();
+endtask
+
+//----------------------------------------------------------------------
+// test_case_fdiv_signs
+//----------------------------------------------------------------------
+
+task test_case_fdiv_signs();
+  t.test_case_begin("test_case_fdiv_signs");
+  if (!t.run_test) return;
+
+  fork
+    begin
+      //   pc  seq_num op1          op2          waddr uop
+      send('0, 0, 32'h40c00000, 32'h40000000, 5'h1, OP_FDIV_S); //  6.0 /  2.0
+      send('1, 1, 32'h40c00000, 32'hc0000000, 5'h2, OP_FDIV_S); //  6.0 / -2.0
+      send('0, 2, 32'hc0c00000, 32'h40000000, 5'h3, OP_FDIV_S); // -6.0 /  2.0
+      send('1, 3, 32'hc0c00000, 32'hc0000000, 5'h4, OP_FDIV_S); // -6.0 / -2.0
+      send('0, 4, 32'h00000000, 32'hc0a00000, 5'h5, OP_FDIV_S); //  0 / -5.0
+      send('1, 5, 32'h80000000, 32'h40a00000, 5'h6, OP_FDIV_S); // -0 /  5.0
+      send('0, 6, 32'h80000000, 32'hc0a00000, 5'h7, OP_FDIV_S); // -0 / -5.0
+      send('1, 7, 32'h00000000, 32'h40a00000, 5'h8, OP_FDIV_S); //  0 /  5.0
+    end
+
+    begin
+      //   pc  seq_num waddr wdata        wen
+      recv('0, 0, 5'h1, 32'h40400000, 1); //  3.0
+      recv('1, 1, 5'h2, 32'hc0400000, 1); // -3.0
+      recv('0, 2, 5'h3, 32'hc0400000, 1); // -3.0
+      recv('1, 3, 5'h4, 32'h40400000, 1); //  3.0
+      recv('0, 4, 5'h5, 32'h80000000, 1); // -0
+      recv('1, 5, 5'h6, 32'h80000000, 1); // -0
+      recv('0, 6, 5'h7, 32'h00000000, 1); // +0
+      recv('1, 7, 5'h8, 32'h00000000, 1); // +0
+    end
+  join
+
+  t.test_case_end();
+endtask
 
 //----------------------------------------------------------------------
 // run_fdiv_test_cases
+//----------------------------------------------------------------------
+// The cycle timeout (divider is ~30 cycles/op, default 10000 is too
+// small) is raised for ALL suites up front in FDIV_test.v. Do not set
+// t.timeout here: this task only runs when its suite starts, and every
+// suite's cycle counter is already running before that.
 //----------------------------------------------------------------------
 
 task run_fdiv_test_cases();
   test_case_fdiv_basic();
   test_case_fdiv_rounding();
+  test_case_fdiv_edge();
+  test_case_fdiv_special();
+  test_case_fdiv_zero_nan();
+  test_case_fdiv_signs();
+  test_case_fdiv_subnormal();
   test_case_fdiv_random();
-
-  // test_case_fdiv_edge();
-  // test_case_fdiv_subnormal();
 endtask
 
 `endif // FDIV_TEST_CASES_SV
+

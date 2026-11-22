@@ -113,8 +113,8 @@ module FDIVTestSuite #(
   assign D__X_intf.waddr   = d__x_msg.waddr;
   assign D__X_intf.uop     = d__x_msg.uop;
 
-  assign D__X_intf.preg    = 'x;
-  assign D__X_intf.ppreg   = 'x;
+  assign D__X_intf.preg    = '0;
+  assign D__X_intf.ppreg   = '0;
 
   TestIstream #( t_d__x_msg, p_D_send_intv_delay ) D_Istream (
     .msg (d__x_msg),
@@ -239,11 +239,25 @@ module FDIV_test;
   FDIVTestSuite #(5, 9, 0, 3) suite_5();
   FDIVTestSuite #(6, 5, 3, 3) suite_6();
 
+  // Every suite has its own TestUtils with its own cycle counter that
+  // runs from time 0, even while earlier suites are still executing. A
+  // suite that has not started yet still has the default timeout (10000)
+  // and trips it while another suite is running. So raise the limit on
+  // ALL suites before running any of them.
+  localparam int p_timeout = 50000000;
+
   int s;
 
   initial begin
     test_bench_begin( `__FILE__ );
     s = get_test_suite();
+
+    suite_1.t.timeout = p_timeout;
+    suite_2.t.timeout = p_timeout;
+    suite_3.t.timeout = p_timeout;
+    suite_4.t.timeout = p_timeout;
+    suite_5.t.timeout = p_timeout;
+    suite_6.t.timeout = p_timeout;
 
     if ((s <= 0) || (s == 1)) suite_1.run_test_suite();
     if ((s <= 0) || (s == 2)) suite_2.run_test_suite();
@@ -255,3 +269,4 @@ module FDIV_test;
     test_bench_end();
   end
 endmodule
+
