@@ -92,6 +92,7 @@ module FDiv (
   X__WIntf.X_intf W
 );
 
+  initial $display("FDiv v2 loaded");
   localparam p_seq_num_bits   = D.p_seq_num_bits;
   localparam p_phys_addr_bits = D.p_phys_addr_bits;
 
